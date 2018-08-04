@@ -1,0 +1,11 @@
+{
+  "name": "royale-leveler",
+  "version": "0.1.0",
+  "description": "Place creation utility for ROyale testing.",
+  "main": "leveler.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "Ryan Scott",
+  "license": "ISC"
+}
