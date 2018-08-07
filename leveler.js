@@ -2,11 +2,13 @@
 
 process.title = 'royale-leveler';
 
+const Promise = require('bluebird');
 const http = require('http');
 const path = require('path');
 const url = require('url');
-const fs = require('fs');
-const pngjs = require('pngjs');
+const fs = Promise.promisifyAll(require('fs'));
+const pngjs = Promise.promisifyAll(require('pngjs'));
+const xmlToJs = Promise.promisify(require('xml2js').parseString);
 
 var server = http.createServer(function(request, response) {
   var filename = path.normalize(request.url);
@@ -18,34 +20,62 @@ var server = http.createServer(function(request, response) {
   
   console.log(`${requestTime} Requested: ${request.url} (${filename})`);
 
-  fs.readFile(process.cwd() + filename, "binary", function(err, file) {
-    if(err) {
-      console.log(`${requestTime} Request for missing file: ${filename}`);
-      response.write(err + "\n");
-
+  fs.readFileAsync(process.cwd() + filename, "binary")
+    .then(JSON.parse)
+    .then(parseMap)
+    .then(function(test) {
+      console.log("DATA: " + JSON.stringify(test));
+      return test;
+    })
+    .then(jsMapToLua)
+    .then(function(data) {
+      response.writeHead(200);
+      response.write(data, "binary");
+      response.end();
+    })
+    .catch(function(e) {
+      console.log(`${requestTime} Error requesting file: ${filename}`);
       response.writeHead(404);
-      response.end("<h2>nope</h2>");
-      return;
-    }
+      response.end(e.message);
 
-    var mapData = parseMap(JSON.parse(file));
-    
-    response.writeHead(200);
-    response.write(mapData, "binary");
-    response.end();
-  });
-  
+      throw(e);
+    });
+
 }).listen(9090);
 
 ///////////
-function parseMap(data) {
-  var out;
+function jsMapToLua(data) {
+  // TODO:  Convert the provided map data into a lua table that can be evaled directly on the client side.
+  return JSON.stringify(data);
+}
 
-  console.log(JSON.stringify(data));
-  
-  // TODO:  Process any heightmaps
-  // .Process object placement layers
-  // .Convert data into a lua formatted table that can be directly evaled
-  
-  return "";
+function parseMap(data) {
+  return loadTilemaps(data)
+    .then(function(tilesets) {
+      var out = []
+
+      data.layers.forEach(function(layer) {
+        layer.objects.forEach(function(frag) {
+          // TODO:  switch on layer type
+          var map = tilesets[frag.gid];
+          var imageName = map.tileset["$"].name;
+          out.push(imageName);
+        });
+      });
+
+      return out;
+    });
+}
+
+function loadTilemaps(data) {
+  // Return a promise for all maps
+  return Promise.reduce(data.tilesets, function(tilesets, mapEntry) {
+    return fs.readFileAsync(process.cwd() + "/" + mapEntry.source)
+      .then(xmlToJs)
+      .then(function(entry) {
+        entry.id = mapEntry.firstgid;
+        tilesets[entry.id] = entry;
+        return tilesets;
+      });
+  }, {});
 }
