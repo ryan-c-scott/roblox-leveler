@@ -23,14 +23,9 @@ var server = http.createServer(function(request, response) {
   fs.readFileAsync(process.cwd() + filename, "binary")
     .then(JSON.parse)
     .then(parseMap)
-    .then(function(test) {
-      console.log("DATA: " + JSON.stringify(test));
-      return test;
-    })
-    .then(jsMapToLua)
     .then(function(data) {
       response.writeHead(200);
-      response.write(data, "binary");
+      writeMapDataToStream(response, data);
       response.end();
     })
     .catch(function(e) {
@@ -44,22 +39,63 @@ var server = http.createServer(function(request, response) {
 }).listen(9090);
 
 ///////////
-function jsMapToLua(data) {
-  // TODO:  Convert the provided map data into a lua table that can be evaled directly on the client side.
-  return JSON.stringify(data);
+function writeMapDataToStream(stream, data) {
+  switch(typeof data) {
+  case 'string':
+  case 'number':
+    stream.write(data.toString(), 'binary');
+    break;
+
+  case 'object':
+    stream.write('{', 'binary');
+
+    if(Array.isArray(data)) {
+      data.forEach((item) => {
+        writeMapDataToStream(stream, item);
+        stream.write(',', 'binary');
+      });
+    }
+    else {
+      for(var k in data) {
+        stream.write(k + '=', 'binary');
+        writeMapDataToStream(stream, data[k]);
+        stream.write(',', 'binary');
+      }
+    }
+    
+    stream.write('}', 'binary');
+    break;
+  }
 }
 
 function parseMap(data) {
   return loadTilemaps(data)
     .then(function(tilesets) {
-      var out = []
+      var out = {fragments: []}
 
       data.layers.forEach(function(layer) {
         layer.objects.forEach(function(frag) {
+
           // TODO:  switch on layer type
           var map = tilesets[frag.gid];
-          var imageName = map.tileset["$"].name;
-          out.push(imageName);
+          var imageName = map.tileset.image[0].$.source;
+          var imagePath = path.dirname(map.path) + '/' + imageName;
+
+          var raw = fs.readFileSync(imagePath);
+          var imageData = pngjs.PNG.sync.read(raw);
+
+          var fragOutput = {}
+          fragOutput.resolution = frag.width / imageData.width;
+          fragOutput.heightmap = [];
+
+          // TODO:  Look into using some form of RLE
+          
+          for(var i = 0; i < imageData.width * imageData.height; ++i) {
+            var idx = i * 4;
+            fragOutput.heightmap.push(imageData.data[idx]);
+          };
+          
+          out.fragments.push(fragOutput);
         });
       });
 
@@ -70,10 +106,13 @@ function parseMap(data) {
 function loadTilemaps(data) {
   // Return a promise for all maps
   return Promise.reduce(data.tilesets, function(tilesets, mapEntry) {
-    return fs.readFileAsync(process.cwd() + "/" + mapEntry.source)
+    var filePath = process.cwd() + "/" + mapEntry.source;
+    
+    return fs.readFileAsync(filePath)
       .then(xmlToJs)
       .then(function(entry) {
         entry.id = mapEntry.firstgid;
+        entry.path = filePath;
         tilesets[entry.id] = entry;
         return tilesets;
       });
