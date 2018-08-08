@@ -10,12 +10,22 @@
                  "height":3199.87878787879,
                  "id":10,
                  "name":"",
+                 "properties":
+                    {
+                     "floor":0,
+                     "height":64
+                    },
+                 "propertytypes":
+                    {
+                     "floor":"int",
+                     "height":"int"
+                    },
                  "rotation":0,
                  "type":"",
                  "visible":true,
                  "width":3199.87878787879,
                  "x":0,
-                 "y":3199.87878787879
+                 "y":3200
                 }],
          "opacity":1,
          "type":"objectgroup",
@@ -31,7 +41,7 @@
  "tilesets":[
         {
          "firstgid":1,
-         "source":"..\/..\/..\/Documents\/height.tsx"
+         "source":"height.tsx"
         }],
  "tilewidth":32,
  "type":"map",
