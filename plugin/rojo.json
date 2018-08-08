@@ -1,0 +1,10 @@
+{
+  "name": "Leveler",
+  "servePort": 8000,
+  "partitions": {
+    "ServerStorage": {
+      "path": "ServerStorage/Scripts",
+      "target": "ServerStorage.Scripts"
+    }
+  }
+}

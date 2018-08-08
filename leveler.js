@@ -85,9 +85,19 @@ function parseMap(data) {
           var imageData = pngjs.PNG.sync.read(raw);
 
           var fragOutput = {}
+          fragOutput.width = imageData.width;
+          fragOutput.height = imageData.height;
           fragOutput.resolution = frag.width / imageData.width;
           fragOutput.heightmap = [];
 
+          if(frag.properties && frag.properties.floor) {
+            fragOutput.floor = frag.properties.floor;
+          }
+          
+          if(frag.properties && frag.properties.height) {
+            fragOutput.terrain_height = frag.properties.height;
+          }
+          
           // TODO:  Look into using some form of RLE
           
           for(var i = 0; i < imageData.width * imageData.height; ++i) {
