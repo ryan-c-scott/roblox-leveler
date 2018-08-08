@@ -4,16 +4,13 @@ local _terrainResolution = 4;
 local _terrainHeight = 64;
 local _heightmapFloor = 64;
 
-local function buildTerrainFragment(frag)
-   -- TODO:  Make this able to process in chunks
-   -- .Currently 256x256 is known to work
-
+local function buildTerrainFragment(frag, origin)
    local fragFloor = frag.floor or _heightmapFloor
    local fragTerrainHeight = frag.terrain_height or _terrainHeight
    
    local size = Vector3.new(frag.width, fragTerrainHeight, frag.height) * _terrainResolution
-   local offset = Vector3.new(size.x, 0, size.z) * 0.5
-   local region = Region3.new(offset * -1, size - offset)
+   local offset = (Vector3.new(frag.x, 0, frag.y) + origin) * _terrainResolution
+   local region = Region3.new(offset, offset + size)
 
    region = region:ExpandToGrid(_terrainResolution)
    
@@ -48,16 +45,20 @@ local function buildTerrainFragment(frag)
       end
    end	
 
-   print(string.format("Map: min:%s height:%s width:%s height:%s",
+   print(string.format("Map: min:%s height:%s x:%s y:%s width:%s height:%s",
                        fragFloor, fragTerrainHeight,
+                       frag.x, frag.y,
                        frag.width, frag.height))
    
    game.Workspace.Terrain:WriteVoxels(region, _terrainResolution, material, occupancy)
 end
 
-
 --------------
 local worldData = HttpService:GetAsync("http://localhost:9090")
-worldData = loadstring("return " .. worldData)()
-buildTerrainFragment(worldData.fragments[1])
+worldData = loadstring(worldData)()
 
+local terrainOrigin = Vector3.new(worldData.size.x, 0, worldData.size.y) * -0.5 * 4
+
+for i,frag in ipairs(worldData.fragments) do
+   buildTerrainFragment(frag, terrainOrigin)
+end
