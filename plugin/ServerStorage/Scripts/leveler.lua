@@ -59,6 +59,8 @@ worldData = loadstring(worldData)()
 
 local terrainOrigin = Vector3.new(worldData.size.x, 0, worldData.size.y) * -0.5 * 4
 
+game.Workspace.Terrain:Clear()
+
 for i,frag in ipairs(worldData.fragments) do
    buildTerrainFragment(frag, terrainOrigin)
 end
