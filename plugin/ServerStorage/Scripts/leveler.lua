@@ -3,16 +3,22 @@ local HttpService = game:GetService("HttpService")
 local _terrainResolution = 4;
 local _terrainHeight = 64;
 local _heightmapFloor = 64;
-local _mapResolution = 5;
 
 local function buildTerrainFragment(frag, origin)
    local fragFloor = frag.floor or _heightmapFloor
    local fragTerrainHeight = frag.terrain_height or _terrainHeight
+   
+   local size = Vector3.new(frag.width, fragTerrainHeight, frag.height) * _terrainResolution
+   local offset = (Vector3.new(frag.x, 0, frag.y) + origin) * _terrainResolution
+   local region = Region3.new(offset, offset + size)
+
+   region = region:ExpandToGrid(_terrainResolution)
+   
    local material = {}
    local occupancy = {}
 
    -- Carve out the necessary tables
-   for x = 1, _mapResolution do
+   for x = 1, frag.width do
       material[x] = {}
       occupancy[x] = {}
       
@@ -22,35 +28,29 @@ local function buildTerrainFragment(frag, origin)
       end
    end	
 
-   local size = Vector3.new(_mapResolution, fragTerrainHeight, _mapResolution) * _terrainResolution
    local heightScale = 1 / 255 * fragTerrainHeight
 
    for i, height in ipairs(frag.heightmap) do
       local idx = i - 1
-      local y = math.floor(idx / frag.width)
-      local x = (idx % frag.width)
+      local y = math.floor(idx / frag.width) + 1
+      local x = (idx % frag.width) + 1
 
       height = math.max(0, height - fragFloor) * heightScale + 1
    
       for j = 1, fragTerrainHeight do
          local fill = math.max(0, math.min(1, height - j))
 
-         for subY = 1, _mapResolution do
-            for subX = 1, _mapResolution do
-               occupancy[subX][j][subY] = fill
-               material[subX][j][subY] = Enum.Material.Grass
-            end
-         end
+         occupancy[x][j][y] = fill
+         material[x][j][y] = Enum.Material.Grass
       end
-
-      -- 
-      local offset = (Vector3.new(frag.x + x * _mapResolution, 0,
-                                  frag.y + y * _mapResolution) + origin) * _terrainResolution
-      local region = Region3.new(offset, offset + size)
-      region = region:ExpandToGrid(_terrainResolution)
-
-      game.Workspace.Terrain:WriteVoxels(region, _terrainResolution, material, occupancy)
    end	
+
+   print(string.format("Map: min:%s height:%s x:%s y:%s width:%s height:%s",
+                       fragFloor, fragTerrainHeight,
+                       frag.x, frag.y,
+                       frag.width, frag.height))
+   
+   game.Workspace.Terrain:WriteVoxels(region, _terrainResolution, material, occupancy)
 end
 
 --------------

@@ -10,7 +10,7 @@ const fs = Promise.promisifyAll(require('fs'));
 const pngjs = Promise.promisifyAll(require('pngjs'));
 const xmlToJs = Promise.promisify(require('xml2js').parseString);
 
-const _maxFragmentSize = 9999999999999999999999999;
+const _maxFragmentSize = 256;
 
 var server = http.createServer(function(request, response) {
   var filename = path.normalize(request.url);
