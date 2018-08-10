@@ -53,14 +53,34 @@ local function buildTerrainFragment(frag, origin)
    game.Workspace.Terrain:WriteVoxels(region, _terrainResolution, material, occupancy)
 end
 
---------------
-local worldData = HttpService:GetAsync("http://localhost:9090")
-worldData = loadstring(worldData)()
+local function loadFragmentFromService(id)
+   local worldData = HttpService:GetAsync("http://localhost:9090/map.json?" .. id)
+   worldData = loadstring(worldData)()
 
-local terrainOrigin = Vector3.new(worldData.size.x, 0, worldData.size.y) * -0.5 * 4
+   local terrainOrigin = Vector3.new(worldData.size.x, 0, worldData.size.y) * -0.5 * 4
 
-game.Workspace.Terrain:Clear()
+   for i,frag in ipairs(worldData.fragments) do
+      buildTerrainFragment(frag, terrainOrigin)
+   end
 
-for i,frag in ipairs(worldData.fragments) do
-   buildTerrainFragment(frag, terrainOrigin)
+   return worldData.total, worldData.remaining
 end
+
+local function loadAllFragments()
+   game.Workspace.Terrain:Clear()
+
+   local current = 0
+   local total = 0
+
+   while current == 0 or current < total do
+      print(string.format("Loading %s/%s", current, total))
+      total = loadFragmentFromService(current)
+      
+      current = current + 1
+   end
+
+   print("Completed")
+end
+
+--------------
+loadAllFragments()

@@ -10,21 +10,19 @@ const fs = Promise.promisifyAll(require('fs'));
 const pngjs = Promise.promisifyAll(require('pngjs'));
 const xmlToJs = Promise.promisify(require('xml2js').parseString);
 
-const _maxFragmentSize = 256;
+const _maxFragmentSize = 128;
 
 var server = http.createServer(function(request, response) {
-  var filename = path.normalize(request.url);
+  var mapUrl = url.parse(request.url);
+  var filename = path.normalize(mapUrl.pathname);
+  var fragIndex = parseInt(mapUrl.query);
   var requestTime = new Date();
 
-  if(filename === '/') {
-    filename = '/map.json';
-  }
-  
-  console.log(`${requestTime} Requested: ${request.url} (${filename})`);
+  console.log(`${requestTime} Requested: ${request.url} (${filename} @ ${fragIndex})`);
 
   fs.readFileAsync(process.cwd() + filename, "binary")
     .then(JSON.parse)
-    .then(parseMap)
+    .then((data) => {return parseMap(data, fragIndex);})
     .then(function(data) {
       response.writeHead(200);
       response.write('return ', 'binary');
@@ -71,7 +69,7 @@ function writeMapDataToStream(stream, data) {
   }
 }
 
-function parseMap(data) {
+function parseMap(data, fragIndex) {
   return loadTilemaps(data)
     .then(function(tilesets) {
       var out = {fragments: []}
@@ -93,43 +91,50 @@ function parseMap(data) {
 
           var heightmapWidth = imageData.width;
           var heightmapHeight = imageData.height;
+
+          var fragmentsPerRow = imageData.width / _maxFragmentSize;
+          var fragmentRow = Math.floor(fragIndex / fragmentsPerRow);
+          var fragmentCol = (fragIndex % fragmentsPerRow);
+      
+          var offsetX = fragmentCol * _maxFragmentSize;
+          var offsetY = fragmentRow * _maxFragmentSize;
+          
           var dataSize = imageData.data.length;
 
+          //
+          out.total = fragmentsPerRow * fragmentsPerRow;
+          out.remaining = out.total - fragIndex - 1;  // -1 because we're already loading this index
+
+          var fragOutput = {}
+          fragOutput.x = offsetX;
+          fragOutput.y = offsetY;
+          
+          fragOutput.width = _maxFragmentSize;
+          fragOutput.height = _maxFragmentSize;
+          fragOutput.resolution = frag.width / imageData.width;
+          fragOutput.heightmap = [];
+
+          if(frag.properties && frag.properties.floor) {
+            fragOutput.floor = frag.properties.floor;
+          }
+          
+          if(frag.properties && frag.properties.height) {
+            fragOutput.terrain_height = frag.properties.height;
+          }
+          
           // Return chunks no larger than _maxFragmentSize * _maxFragmentSize.
-          for(var offsetY = 0; offsetY < heightmapWidth; offsetY += _maxFragmentSize) {
-            for(var offsetX = 0; offsetX < heightmapWidth; offsetX += _maxFragmentSize) {
+          var dataOffset = fragIndex * _maxFragmentSize;
+          for(var y = 0; y < _maxFragmentSize; ++y) {
+            for(var x = 0; x < _maxFragmentSize; ++x) {
 
-              var fragWidth = Math.min(_maxFragmentSize, heightmapWidth - offsetX);
-              var fragHeight = Math.min(_maxFragmentSize, heightmapHeight - offsetY);
-              
-              var fragOutput = {}
-              fragOutput.x = offsetX;
-              fragOutput.y = offsetY;
-              fragOutput.width = fragWidth;
-              fragOutput.height = fragHeight;
-              fragOutput.resolution = frag.width / imageData.width;
-              fragOutput.heightmap = [];
-
-              if(frag.properties && frag.properties.floor) {
-                fragOutput.floor = frag.properties.floor;
-              }
-              
-              if(frag.properties && frag.properties.height) {
-                fragOutput.terrain_height = frag.properties.height;
-              }
-              
               // TODO:  Look into using some form of RLE
 
-              for(var y = 0; y < fragHeight; ++y) {
-                for(var x = 0; x < fragWidth; ++x) {
-                  var idx = ((offsetY + y) * heightmapWidth + (offsetX + x)) * 4;
-                  fragOutput.heightmap.push(imageData.data[idx]);
-                }
-              }
-              
-              out.fragments.push(fragOutput);
+              // fragOutput.heightmap.push(imageData.data[(dataOffset + x) * 4]);
+              fragOutput.heightmap.push(imageData.data[((offsetY + y) * imageData.width + (offsetX + x)) * 4]);
             }
           }
+
+          out.fragments.push(fragOutput);
         });
       });
 
