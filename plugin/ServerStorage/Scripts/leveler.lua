@@ -82,5 +82,34 @@ local function loadAllFragments()
    print("Completed")
 end
 
+local function loadTestArea()
+   game.Workspace.Terrain:Clear()
+
+   local fragmentsPerRow = 3000 / 150
+   local area = 4
+
+   local startX = math.floor(fragmentsPerRow * 0.5 - area * 0.5)
+   local startY = math.floor(fragmentsPerRow * 0.5 - area * 0.5)
+
+   local step = 1
+   
+   for y = startY, math.min(fragmentsPerRow, startY + area - 1)  do
+      for x = startX, math.min(fragmentsPerRow, startX + area - 1) do
+         local idx = (y - 1) * fragmentsPerRow + (x - 1)
+         print(string.format("Loading %sx%s (frag: %s).  %s/%s", x, y, idx, step, area*area))
+         loadFragmentFromService(idx)
+
+         step = step + 1
+      end
+   end
+
+   print("Completed")
+end
+
 --------------
-loadAllFragments()
+if _full then
+   loadAllFragments()
+else
+   loadTestArea()
+end
+
