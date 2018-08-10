@@ -12,6 +12,8 @@ const xmlToJs = Promise.promisify(require('xml2js').parseString);
 
 const _maxFragmentSize = 128;
 
+var _imageDataCache = {}
+
 var server = http.createServer(function(request, response) {
   var mapUrl = url.parse(request.url);
   var filename = path.normalize(mapUrl.pathname);
@@ -87,8 +89,16 @@ function parseMap(data, fragIndex) {
           var imagePath = path.dirname(map.path) + '/' + imageName;
 
           var raw = fs.readFileSync(imagePath);
-          var imageData = pngjs.PNG.sync.read(raw);
+          var imageData;
 
+          if(fragIndex != 0) {
+            imageData = _imageDataCache[imagePath];
+          }
+
+          if(!imageData) {
+            imageData = pngjs.PNG.sync.read(raw);
+          }
+          
           var heightmapWidth = imageData.width;
           var heightmapHeight = imageData.height;
 

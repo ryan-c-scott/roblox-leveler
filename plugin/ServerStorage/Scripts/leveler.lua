@@ -73,7 +73,7 @@ local function loadAllFragments()
    local total = 0
 
    while current == 0 or current < total do
-      print(string.format("Loading %s/%s", current, total))
+      print(string.format("Loading %s/%s (%s%%)", current, total, (current / total) * 100))
       total = loadFragmentFromService(current)
       
       current = current + 1
