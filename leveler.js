@@ -10,8 +10,6 @@ const fs = Promise.promisifyAll(require('fs'));
 const pngjs = Promise.promisifyAll(require('pngjs'));
 const xmlToJs = Promise.promisify(require('xml2js').parseString);
 
-const _maxFragmentSize = 128;
-
 var _imageDataCache = {}
 
 var server = http.createServer(function(request, response) {
@@ -75,6 +73,7 @@ function parseMap(data, fragIndex) {
   return loadTilemaps(data)
     .then(function(tilesets) {
       var out = {fragments: []}
+      var maxFragmentSize = data.tilewidth;
 
       out.size = {x: data.width,
                   y: data.height};
@@ -102,12 +101,12 @@ function parseMap(data, fragIndex) {
           var heightmapWidth = imageData.width;
           var heightmapHeight = imageData.height;
 
-          var fragmentsPerRow = imageData.width / _maxFragmentSize;
+          var fragmentsPerRow = imageData.width / maxFragmentSize;
           var fragmentRow = Math.floor(fragIndex / fragmentsPerRow);
           var fragmentCol = (fragIndex % fragmentsPerRow);
       
-          var offsetX = fragmentCol * _maxFragmentSize;
-          var offsetY = fragmentRow * _maxFragmentSize;
+          var offsetX = fragmentCol * maxFragmentSize;
+          var offsetY = fragmentRow * maxFragmentSize;
           
           var dataSize = imageData.data.length;
 
@@ -119,8 +118,8 @@ function parseMap(data, fragIndex) {
           fragOutput.x = offsetX;
           fragOutput.y = offsetY;
           
-          fragOutput.width = _maxFragmentSize;
-          fragOutput.height = _maxFragmentSize;
+          fragOutput.width = maxFragmentSize;
+          fragOutput.height = maxFragmentSize;
           fragOutput.resolution = frag.width / imageData.width;
           fragOutput.heightmap = [];
 
@@ -132,19 +131,25 @@ function parseMap(data, fragIndex) {
             fragOutput.terrain_height = frag.properties.height;
           }
           
-          // Return chunks no larger than _maxFragmentSize * _maxFragmentSize.
-          var dataOffset = fragIndex * _maxFragmentSize;
-          for(var y = 0; y < _maxFragmentSize; ++y) {
-            for(var x = 0; x < _maxFragmentSize; ++x) {
+          // Return chunks no larger than maxFragmentSize * maxFragmentSize.
+          var fragHasData = false;
+          var dataOffset = fragIndex * maxFragmentSize;
 
-              // TODO:  Look into using some form of RLE
+          // TODO:  Look into using some form of RLE
+          
+          for(var y = 0; y < maxFragmentSize; ++y) {
+            for(var x = 0; x < maxFragmentSize; ++x) {
 
-              // fragOutput.heightmap.push(imageData.data[(dataOffset + x) * 4]);
-              fragOutput.heightmap.push(imageData.data[((offsetY + y) * imageData.width + (offsetX + x)) * 4]);
+              var val = imageData.data[((offsetY + y) * imageData.width + (offsetX + x)) * 4];
+              fragOutput.heightmap.push(val);
+
+              fragHasData = fragHasData || val != 0;
             }
           }
 
-          out.fragments.push(fragOutput);
+          if(fragHasData) {
+            out.fragments.push(fragOutput);
+          }
         });
       });
 
