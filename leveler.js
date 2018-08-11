@@ -70,105 +70,84 @@ function writeMapDataToStream(stream, data) {
 }
 
 function parseMap(data, fragIndex) {
-  return loadTilemaps(data)
-    .then(function(tilesets) {
-      var out = {fragments: []}
-      var maxFragmentSize = data.tilewidth;
+  var out = {fragments: []}
+  var maxFragmentSize = data.tilewidth;
 
-      out.size = {x: data.width,
-                  y: data.height};
+  out.size = {x: data.width,
+              y: data.height};
 
-      data.layers.forEach(function(layer) {
-        layer.objects.forEach(function(frag) {
+  data.layers.forEach(function(layer) {
+    if(layer.type === 'imagelayer') {
+      var imagePath = layer.image;
 
-          // TODO:  switch on layer type
+      var raw = fs.readFileSync(imagePath);
+      var imageData;
 
-          var map = tilesets[frag.gid];
-          var imageName = map.tileset.image[0].$.source;
-          var imagePath = path.dirname(map.path) + '/' + imageName;
+      if(fragIndex != 0) {
+        imageData = _imageDataCache[imagePath];
+      }
 
-          var raw = fs.readFileSync(imagePath);
-          var imageData;
+      if(!imageData) {
+        console.log("Loading image data");
+        imageData = pngjs.PNG.sync.read(raw);
+      }
 
-          if(fragIndex != 0) {
-            imageData = _imageDataCache[imagePath];
-          }
-
-          if(!imageData) {
-            imageData = pngjs.PNG.sync.read(raw);
-          }
-          
-          var heightmapWidth = imageData.width;
-          var heightmapHeight = imageData.height;
-
-          var fragmentsPerRow = imageData.width / maxFragmentSize;
-          var fragmentRow = Math.floor(fragIndex / fragmentsPerRow);
-          var fragmentCol = (fragIndex % fragmentsPerRow);
+      _imageDataCache[imagePath] = imageData;
       
-          var offsetX = fragmentCol * maxFragmentSize;
-          var offsetY = fragmentRow * maxFragmentSize;
-          
-          var dataSize = imageData.data.length;
+      var heightmapWidth = imageData.width;
+      var heightmapHeight = imageData.height;
 
-          //
-          out.total = fragmentsPerRow * fragmentsPerRow;
-          out.remaining = out.total - fragIndex - 1;  // -1 because we're already loading this index
+      var fragmentsPerRow = imageData.width / maxFragmentSize;
+      var fragmentRow = Math.floor(fragIndex / fragmentsPerRow);
+      var fragmentCol = (fragIndex % fragmentsPerRow);
+      
+      var offsetX = fragmentCol * maxFragmentSize;
+      var offsetY = fragmentRow * maxFragmentSize;
+      
+      var dataSize = imageData.data.length;
 
-          var fragOutput = {}
-          fragOutput.x = offsetX;
-          fragOutput.y = offsetY;
-          
-          fragOutput.width = maxFragmentSize;
-          fragOutput.height = maxFragmentSize;
-          fragOutput.resolution = frag.width / imageData.width;
-          fragOutput.heightmap = [];
+      //
+      out.total = fragmentsPerRow * fragmentsPerRow;
+      out.remaining = out.total - fragIndex - 1;  // -1 because we're already loading this index
 
-          if(frag.properties && frag.properties.floor) {
-            fragOutput.floor = frag.properties.floor;
-          }
-          
-          if(frag.properties && frag.properties.height) {
-            fragOutput.terrain_height = frag.properties.height;
-          }
-          
-          // Return chunks no larger than maxFragmentSize * maxFragmentSize.
-          var fragHasData = false;
-          var dataOffset = fragIndex * maxFragmentSize;
+      var fragOutput = {}
+      fragOutput.x = offsetX;
+      fragOutput.y = offsetY;
+      
+      fragOutput.width = maxFragmentSize;
+      fragOutput.height = maxFragmentSize;
+      fragOutput.heightmap = [];
 
-          // TODO:  Look into using some form of RLE
-          
-          for(var y = 0; y < maxFragmentSize; ++y) {
-            for(var x = 0; x < maxFragmentSize; ++x) {
+      if(layer.properties && layer.properties.floor) {
+        fragOutput.floor = layer.properties.floor;
+      }
+      
+      if(layer.properties && layer.properties.height) {
+        fragOutput.terrain_height = layer.properties.height;
+      }
+      
+      // Return chunks no larger than maxFragmentSize * maxFragmentSize.
+      var fragHasData = false;
+      var dataOffset = fragIndex * maxFragmentSize;
 
-              var val = imageData.data[((offsetY + y) * imageData.width + (offsetX + x)) * 4];
-              fragOutput.heightmap.push(val);
+      // TODO:  Look into using some form of RLE
+      
+      for(var y = 0; y < maxFragmentSize; ++y) {
+        for(var x = 0; x < maxFragmentSize; ++x) {
 
-              fragHasData = fragHasData || val != 0;
-            }
-          }
+          var val = imageData.data[((offsetY + y) * imageData.width + (offsetX + x)) * 4];
+          fragOutput.heightmap.push(val);
 
-          if(fragHasData) {
-            out.fragments.push(fragOutput);
-          }
-        });
-      });
+          fragHasData = fragHasData || val != 0;
+        }
+      }
 
-      return out;
-    });
+      if(fragHasData) {
+        out.fragments.push(fragOutput);
+      }
+    }
+  });
+
+  return out;
 }
 
-function loadTilemaps(data) {
-  // Return a promise for all maps
-  return Promise.reduce(data.tilesets, function(tilesets, mapEntry) {
-    var filePath = process.cwd() + "/" + mapEntry.source;
-    
-    return fs.readFileAsync(filePath)
-      .then(xmlToJs)
-      .then(function(entry) {
-        entry.id = mapEntry.firstgid;
-        entry.path = filePath;
-        tilesets[entry.id] = entry;
-        return tilesets;
-      });
-  }, {});
-}
