@@ -30,6 +30,9 @@ local function buildTerrainFragment(frag, origin)
 
    local heightScale = 1 / 255 * fragTerrainHeight
 
+   -- Testing:  Water level
+   local waterLevel = _water or 55
+   
    for i, height in ipairs(frag.heightmap) do
       local idx = i - 1
       local y = math.floor(idx / frag.width) + 1
@@ -38,10 +41,23 @@ local function buildTerrainFragment(frag, origin)
       height = math.max(0, height - fragFloor) * heightScale + 1
    
       for j = 1, fragTerrainHeight do
-         local fill = math.max(0, math.min(1, height - j))
+         local fill = math.max(0, math.min(1, height - j - 1))
+         local water = math.max(0, waterLevel - j - 1)
+         local mat = Enum.Material.Grass
 
+         if fill > 0 and fill < 1 and water > 0 then
+            mat = Enum.Material.Sand
+            
+         elseif fill == 0 and water > 0 then
+            mat = Enum.Material.Water
+
+            if water > 1 then
+               fill = 1
+            end
+         end
+         
          occupancy[x][j][y] = fill
-         material[x][j][y] = Enum.Material.Grass
+         material[x][j][y] = mat
       end
    end	
 
@@ -86,7 +102,7 @@ local function loadTestArea()
    game.Workspace.Terrain:Clear()
 
    local fragmentsPerRow = 3000 / 150
-   local area = 4
+   local area = _area or 4
 
    local startX = math.floor(fragmentsPerRow * 0.5 - area * 0.5)
    local startY = math.floor(fragmentsPerRow * 0.5 - area * 0.5)
