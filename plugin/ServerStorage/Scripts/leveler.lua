@@ -60,10 +60,7 @@ local function buildTerrainFragment(frag, origin)
             
          elseif fill == 0 and water > 0 then
             mat = Enum.Material.Water
-
-            if water > 1 then
-               fill = 1
-            end
+            fill = 1
          end
          
          occupancy[x][j][y] = fill
