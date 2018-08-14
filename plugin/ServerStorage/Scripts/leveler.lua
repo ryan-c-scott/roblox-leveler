@@ -47,9 +47,9 @@ local function buildTerrainFragment(frag, origin)
       local x = (idx % frag.width) + 1
       local waterLevel = 0
 
-      height = math.max(0, height - fragFloor) * heightScale + 1
-      waterLevel = math.max(0, getWaterLevel(frag.water, idx) - fragFloor) * heightScale + 1
-         
+      height = math.max(0, height - fragFloor) * heightScale
+      waterLevel = math.max(0, getWaterLevel(frag.water, idx) - fragFloor) * heightScale
+      
       for j = 1, fragTerrainHeight do
          local fill = math.max(0, math.min(1, height - j - 1))
          local water = math.max(0, waterLevel - j - 1)

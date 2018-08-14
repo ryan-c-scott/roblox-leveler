@@ -196,10 +196,6 @@ function parseMap(data, fragIndex) {
         out.terrain_height = layer.properties.height;
       }
       
-      // Return chunks no larger than maxFragmentSize * maxFragmentSize.
-      var fragHasData = false;
-      var dataOffset = fragIndex * maxFragmentSize;
-
       // TODO:  Look into using some form of RLE
       
       for(var y = 0; y < maxFragmentSize; ++y) {
@@ -207,13 +203,7 @@ function parseMap(data, fragIndex) {
 
           var val = imageData.data[((offsetY + y) * imageData.width + (offsetX + x)) * 4];
           out.heightmap.push(val);
-
-          fragHasData = fragHasData || val != 0;
         }
-      }
-
-      if(!fragHasData) {
-        out.heightmap = []
       }
 
       // Water from blue channel
