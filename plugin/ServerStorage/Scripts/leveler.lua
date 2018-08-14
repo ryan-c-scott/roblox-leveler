@@ -4,6 +4,17 @@ local _terrainResolution = 4;
 local _terrainHeight = 64;
 local _heightmapFloor = 64;
 
+local function getWaterLevel(water, idx)
+   for i, run in ipairs(water) do
+      local delta = idx - run[1]
+      if delta >= 0 and delta < run[3] then
+         return run[2]
+      end
+   end
+
+   return 0
+end
+
 local function buildTerrainFragment(frag, origin)
    local fragFloor = frag.floor or _heightmapFloor
    local fragTerrainHeight = frag.terrain_height or _terrainHeight
@@ -30,16 +41,15 @@ local function buildTerrainFragment(frag, origin)
 
    local heightScale = 1 / 255 * fragTerrainHeight
 
-   -- Testing:  Water level
-   local waterLevel = _water or 55
-   
    for i, height in ipairs(frag.heightmap) do
       local idx = i - 1
       local y = math.floor(idx / frag.width) + 1
       local x = (idx % frag.width) + 1
+      local waterLevel = 0
 
       height = math.max(0, height - fragFloor) * heightScale + 1
-   
+      waterLevel = math.max(0, getWaterLevel(frag.water, idx) - fragFloor) * heightScale + 1
+         
       for j = 1, fragTerrainHeight do
          local fill = math.max(0, math.min(1, height - j - 1))
          local water = math.max(0, waterLevel - j - 1)
@@ -74,11 +84,8 @@ local function loadFragmentFromService(id)
    worldData = loadstring(worldData)()
 
    local terrainOrigin = Vector3.new(worldData.size.x, 0, worldData.size.y) * -0.5 * 4
-
-   for i,frag in ipairs(worldData.fragments) do
-      buildTerrainFragment(frag, terrainOrigin)
-   end
-
+   buildTerrainFragment(worldData, terrainOrigin)
+      
    return worldData.total, worldData.remaining
 end
 
