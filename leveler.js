@@ -18,6 +18,14 @@ var server = http.createServer(function(request, response) {
   var fragIndex = parseInt(mapUrl.query);
   var requestTime = new Date();
 
+  if(mapUrl.query === 'cache') {
+    response.writeHead(200);
+    var imgData = _imageDataCache[Object.keys(_imageDataCache)[0]];
+    response.write(pngjs.PNG.sync.write(imgData), 'binary');
+    response.end();
+    return;
+  }
+  
   console.log(`${requestTime} Requested: ${request.url} (${filename} @ ${fragIndex})`);
 
   fs.readFileAsync(process.cwd() + filename, "binary")
@@ -69,6 +77,40 @@ function writeMapDataToStream(stream, data) {
   }
 }
 
+function floodFill(data, offset, x, y, w, h, threshold) {
+  var queue = [[x, y]];
+
+  console.log(`flood: ${threshold}`);
+  
+  while(queue.length > 0) {
+    var point = queue.pop();
+    var px = point[0];
+    var py = point[1];
+    var idx = (py * w + px) * 4;
+
+    // Change value
+    if(data[idx] < threshold) {
+      var current = data[idx + offset];
+
+      // Queue all neighbors
+      if(current != threshold) {
+        data[idx + offset] = threshold;
+        
+        for(var ny = py - 1; ny <= py + 1; ++ny) {
+          for(var nx = px - 1; nx <= px + 1; ++nx) {
+            if((ny != py || nx != px) &&
+               (ny < h && ny >= 0 &&
+                nx < w && nx >= 0)){
+
+              queue.push([nx, ny]);
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
 function parseMap(data, fragIndex) {
   var out = {fragments: []}
   var maxFragmentSize = data.tilewidth;
@@ -90,6 +132,34 @@ function parseMap(data, fragIndex) {
       if(!imageData) {
         console.log("Loading image data");
         imageData = pngjs.PNG.sync.read(raw);
+
+        // Wipe out green and blue channels
+        for(var i = 0; i < imageData.data.length; ++i) {
+          imageData.data[i * 4 + 1] = 0;
+          imageData.data[i * 4 + 2] = 0;
+        }
+        
+        // Blue channel as water level
+        // .Iterate through all objects of type 'point' and flood to the depth specified
+        data.layers.forEach(function(otherLayer) {
+          if(otherLayer.type != 'objectgroup') {
+            return;
+          }
+          
+          otherLayer.objects.forEach(function(obj) {
+            if(!obj.point) {
+              return;
+            }
+
+            var x = Math.floor(obj.x);
+            var y = Math.floor(obj.y);
+            
+            var depth = obj.properties.depth;
+            var threshold = imageData.data[(y * imageData.width + x) * 4] + depth;
+            
+            floodFill(imageData.data, 2, x, y, imageData.width, imageData.height, threshold);
+          });
+        });
       }
 
       _imageDataCache[imagePath] = imageData;
@@ -110,20 +180,20 @@ function parseMap(data, fragIndex) {
       out.total = fragmentsPerRow * fragmentsPerRow;
       out.remaining = out.total - fragIndex - 1;  // -1 because we're already loading this index
 
-      var fragOutput = {}
-      fragOutput.x = offsetX;
-      fragOutput.y = offsetY;
+      out.x = offsetX;
+      out.y = offsetY;
       
-      fragOutput.width = maxFragmentSize;
-      fragOutput.height = maxFragmentSize;
-      fragOutput.heightmap = [];
+      out.width = maxFragmentSize;
+      out.height = maxFragmentSize;
+      out.heightmap = [];
+      out.water = [];
 
       if(layer.properties && layer.properties.floor) {
-        fragOutput.floor = layer.properties.floor;
+        out.floor = layer.properties.floor;
       }
       
       if(layer.properties && layer.properties.height) {
-        fragOutput.terrain_height = layer.properties.height;
+        out.terrain_height = layer.properties.height;
       }
       
       // Return chunks no larger than maxFragmentSize * maxFragmentSize.
@@ -136,14 +206,51 @@ function parseMap(data, fragIndex) {
         for(var x = 0; x < maxFragmentSize; ++x) {
 
           var val = imageData.data[((offsetY + y) * imageData.width + (offsetX + x)) * 4];
-          fragOutput.heightmap.push(val);
+          out.heightmap.push(val);
 
           fragHasData = fragHasData || val != 0;
         }
       }
 
-      if(fragHasData) {
-        out.fragments.push(fragOutput);
+      if(!fragHasData) {
+        out.heightmap = []
+      }
+
+      // Water from blue channel
+      {
+        var startIdx = 0;
+        var on = false;
+        var height = 0;
+
+        for(var y = 0; y < maxFragmentSize; ++y) {
+          for(var x = 0; x < maxFragmentSize; ++x) {
+            var i = y * maxFragmentSize + x;
+            var dataIdx = ((offsetY + y) * imageData.width + (offsetX + x)) * 4 + 2;
+
+            var thisHeight = imageData.data[dataIdx];
+
+            if(thisHeight > 0) {
+              if(!on) {
+                on = true;
+                startIdx = i;
+                height = thisHeight;
+              }
+            }
+            else {
+              if(on) {
+                out.water.push([startIdx, height, i - startIdx]);
+              }
+
+              on = false;
+              height = 0;
+            }
+          }
+        }
+
+        //
+        if(on) {
+          out.water.push([startIdx, height, maxFragmentSize * maxFragmentSize - 1 - startIdx]);
+        }
       }
     }
   });
