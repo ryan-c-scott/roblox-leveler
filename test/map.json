@@ -19,8 +19,38 @@
          "visible":true,
          "x":0,
          "y":0
+        }, 
+        {
+         "draworder":"topdown",
+         "name":"water",
+         "objects":[
+                {
+                 "height":0,
+                 "id":26,
+                 "name":"",
+                 "point":true,
+                 "properties":
+                    {
+                     "depth":4
+                    },
+                 "propertytypes":
+                    {
+                     "depth":"int"
+                    },
+                 "rotation":0,
+                 "type":"",
+                 "visible":true,
+                 "width":0,
+                 "x":1264,
+                 "y":1119.75757575758
+                }],
+         "opacity":1,
+         "type":"objectgroup",
+         "visible":true,
+         "x":0,
+         "y":0
         }],
- "nextobjectid":12,
+ "nextobjectid":28,
  "orientation":"orthogonal",
  "renderorder":"right-down",
  "tiledversion":"1.1.6",
