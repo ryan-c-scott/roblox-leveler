@@ -77,12 +77,15 @@ local function buildTerrainFragment(frag, origin)
 end
 
 local function loadFragmentFromService(id)
-   local worldData = HttpService:GetAsync("http://localhost:9090/map.json?" .. id)
+   local worldData = HttpService:GetAsync("http://localhost:9090/map.json?type=frag&id=" .. id)
    worldData = loadstring(worldData)()
 
    local terrainOrigin = Vector3.new(worldData.size.x, 0, worldData.size.y) * -0.5 * 4
    buildTerrainFragment(worldData, terrainOrigin)
-      
+
+   -- Testing:  Objects
+   
+   
    return worldData.total, worldData.remaining
 end
 

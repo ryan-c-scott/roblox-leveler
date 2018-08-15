@@ -6,35 +6,62 @@ const Promise = require('bluebird');
 const http = require('http');
 const path = require('path');
 const url = require('url');
+const querystring = require('querystring');
 const fs = Promise.promisifyAll(require('fs'));
 const pngjs = Promise.promisifyAll(require('pngjs'));
 const xmlToJs = Promise.promisify(require('xml2js').parseString);
 
 var _imageDataCache = {}
+var _jsonDataCache = {}
 
 var server = http.createServer(function(request, response) {
   var mapUrl = url.parse(request.url);
   var filename = path.normalize(mapUrl.pathname);
-  var fragIndex = parseInt(mapUrl.query);
+  var query = querystring.parse(mapUrl.query);
   var requestTime = new Date();
-
-  if(mapUrl.query === 'cache') {
+  var fragIndex = parseInt(query.id);
+  
+  if(query.type === 'cached') {
     response.writeHead(200);
+
     var imgData = _imageDataCache[Object.keys(_imageDataCache)[0]];
-    response.write(pngjs.PNG.sync.write(imgData), 'binary');
+
+    if(imgData) {
+      response.write(pngjs.PNG.sync.write(imgData), 'binary');
+    }
+
     response.end();
     return;
   }
-  
-  console.log(`${requestTime} Requested: ${request.url} (${filename} @ ${fragIndex})`);
 
-  fs.readFileAsync(process.cwd() + filename, "binary")
-    .then(JSON.parse)
+  if(query.type === 'clear') {
+    _jsonDataCache = {}
+    _imageDataCache = {}
+    
+    response.writeHead(200);
+    response.end();
+    return;
+  }
+
+  loadMapFile(filename, query.type != 'object')
     .then((data) => {return parseMap(data, fragIndex);})
     .then(function(data) {
       response.writeHead(200);
       response.write('return ', 'binary');
-      writeMapDataToStream(response, data);
+
+      switch(query.type) {
+      case 'frag':
+        console.log(`${requestTime} Requested: ${request.url} (${filename} @ ${fragIndex})`);
+        writeMapDataToStream(response, data);
+        break;
+
+      case 'obj':
+        console.log(`${requestTime} Requested: ${request.url} (${filename})`);
+        writeObjectDataToStream(response, data);
+        break;
+      }
+
+      //
       response.end();
     })
     .catch(function(e) {
@@ -77,6 +104,11 @@ function writeMapDataToStream(stream, data) {
   }
 }
 
+function writeObjectDataToStream(stream, data) {
+  stream.write('{', 'binary');
+  stream.write('}', 'binary');
+}
+
 function floodFill(data, offset, x, y, w, h, threshold) {
   var queue = [[x, y]];
 
@@ -111,6 +143,20 @@ function floodFill(data, offset, x, y, w, h, threshold) {
   }
 }
 
+function loadMapFile(filename, enableCaching) {
+  var cached = _jsonDataCache[filename];
+
+  if(enableCaching && cached) {
+    return Promise.resolve(cached);
+  }
+
+  return fs.readFileAsync(process.cwd() + filename, "binary")
+    .then(JSON.parse)
+    .then((data) => {
+      _jsonDataCache[filename] = data;
+      return data;});
+}
+
 function parseMap(data, fragIndex) {
   var out = {fragments: []}
   var maxFragmentSize = data.tilewidth;
@@ -142,7 +188,7 @@ function parseMap(data, fragIndex) {
         // Blue channel as water level
         // .Iterate through all objects of type 'point' and flood to the depth specified
         data.layers.forEach(function(otherLayer) {
-          if(otherLayer.type != 'objectgroup') {
+          if(otherLayer.type != 'objectgroup' || otherLayer.name != 'water') {
             return;
           }
           
