@@ -10,6 +10,8 @@ const querystring = require('querystring');
 const fs = Promise.promisifyAll(require('fs'));
 const pngjs = Promise.promisifyAll(require('pngjs'));
 const xmlToJs = Promise.promisify(require('xml2js').parseString);
+const kmath = require('kmath');
+const vector = kmath.vector;
 
 var _imageDataCache = {}
 var _jsonDataCache = {}
@@ -43,7 +45,7 @@ var server = http.createServer(function(request, response) {
     return;
   }
 
-  loadMapFile(filename, query.type != 'object')
+  loadMapFile(filename, query.type != 'obj')
     .then((data) => {return parseMap(data, fragIndex);})
     .then(function(data) {
       response.writeHead(200);
@@ -78,6 +80,9 @@ var server = http.createServer(function(request, response) {
 function writeMapDataToStream(stream, data) {
   switch(typeof data) {
   case 'string':
+    stream.write(`'${data}'`);
+    break;
+    
   case 'number':
     stream.write(data.toString(), 'binary');
     break;
@@ -105,8 +110,63 @@ function writeMapDataToStream(stream, data) {
 }
 
 function writeObjectDataToStream(stream, data) {
-  stream.write('{', 'binary');
-  stream.write('}', 'binary');
+  var raw = _jsonDataCache[data.filename];
+  var heightmap = _imageDataCache[data.filename];
+
+  var out = {}
+
+  console.log(data.filename);
+  
+  raw.layers.forEach((layer) => {
+    if(layer.type != 'objectgroup' || layer.name === 'water') {
+      return;
+    }
+
+    layer.objects.forEach((obj) => {
+      var group = out[obj.name];
+  
+      if(!group) {
+        group = [];
+        out[obj.name] = group;
+      }
+
+      var center = [obj.x, obj.y];
+      var density = parseFloat(obj.type);
+
+      if(obj.ellipse) {
+        var radius = obj.width * 0.5;
+        var area = radius * radius * Math.PI;
+        var count = Math.floor(area * density);
+
+        // Use center of object
+        center = vector.add(center, [radius, radius]);
+
+        console.log(`${obj.name} ${radius} ${area} ${count}`);
+
+        for(var i = 0; i < count; ++i) {
+          var dir = vector.normalize(vector.rotateDeg([1, 0], Math.random() * 360));
+          var pos = vector.add(center, vector.scale(dir, Math.random() * radius));
+
+          var x = Math.floor(pos[0])
+          var y = Math.floor(pos[1])
+
+          if(x > 0 && x < heightmap.width &&
+             y > 0 && y < heightmap.height) {
+
+            var heightIdx = (y * heightmap.width + x) * 4
+            var height = heightmap.data[heightIdx]
+
+            // Testing:  No object placement in water
+            if(heightmap.data[heightIdx + 2] == 0) {
+              group.push([x, height, y]);
+            }
+          }
+        }
+      }
+    });
+  });
+
+  writeMapDataToStream(stream, out);
 }
 
 function floodFill(data, offset, x, y, w, h, threshold) {
@@ -153,12 +213,15 @@ function loadMapFile(filename, enableCaching) {
   return fs.readFileAsync(process.cwd() + filename, "binary")
     .then(JSON.parse)
     .then((data) => {
+      data.filename = filename;
+      console.log(`caching ${filename}`);
       _jsonDataCache[filename] = data;
       return data;});
 }
 
 function parseMap(data, fragIndex) {
-  var out = {fragments: []}
+  var out = {fragments: [],
+             filename: data.filename}
   var maxFragmentSize = data.tilewidth;
 
   out.size = {x: data.width,
@@ -172,7 +235,7 @@ function parseMap(data, fragIndex) {
       var imageData;
 
       if(fragIndex != 0) {
-        imageData = _imageDataCache[imagePath];
+        imageData = _imageDataCache[data.filename];
       }
 
       if(!imageData) {
@@ -208,7 +271,7 @@ function parseMap(data, fragIndex) {
         });
       }
 
-      _imageDataCache[imagePath] = imageData;
+      _imageDataCache[data.filename] = imageData;
       
       var heightmapWidth = imageData.width;
       var heightmapHeight = imageData.height;
@@ -236,10 +299,6 @@ function parseMap(data, fragIndex) {
 
       if(layer.properties && layer.properties.floor) {
         out.floor = layer.properties.floor;
-      }
-      
-      if(layer.properties && layer.properties.height) {
-        out.terrain_height = layer.properties.height;
       }
       
       // TODO:  Look into using some form of RLE

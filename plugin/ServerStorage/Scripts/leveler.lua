@@ -1,8 +1,12 @@
 local HttpService = game:GetService("HttpService")
+local ReplicatedStorage = game:GetService('ReplicatedStorage')
 
 local _terrainResolution = 4;
-local _terrainHeight = 64;
-local _heightmapFloor = 64;
+local _terrainHeight = 128;
+
+local function Log(...)
+   print(string.format(...))
+end
 
 local function getWaterLevel(water, idx)
    for i, run in ipairs(water) do
@@ -15,12 +19,9 @@ local function getWaterLevel(water, idx)
    return 0
 end
 
-local function buildTerrainFragment(frag, origin)
-   local fragFloor = frag.floor or _heightmapFloor
-   local fragTerrainHeight = frag.terrain_height or _terrainHeight
-   
-   local size = Vector3.new(frag.width, fragTerrainHeight, frag.height) * _terrainResolution
-   local offset = (Vector3.new(frag.x, 0, frag.y) + origin) * _terrainResolution
+local function buildTerrainFragment(frag)
+   local size = Vector3.new(frag.width, _terrainHeight, frag.height) * _terrainResolution
+   local offset = Vector3.new(frag.x, 0, frag.y) * _terrainResolution
    local region = Region3.new(offset, offset + size)
 
    region = region:ExpandToGrid(_terrainResolution)
@@ -33,13 +34,13 @@ local function buildTerrainFragment(frag, origin)
       material[x] = {}
       occupancy[x] = {}
       
-      for y = 1, fragTerrainHeight do
+      for y = 1, _terrainHeight do
          material[x][y] = {}
          occupancy[x][y] = {}
       end
    end	
 
-   local heightScale = 1 / 255 * fragTerrainHeight
+   local heightScale = 1 / 255 * _terrainHeight
 
    for i, height in ipairs(frag.heightmap) do
       local idx = i - 1
@@ -47,10 +48,10 @@ local function buildTerrainFragment(frag, origin)
       local x = (idx % frag.width) + 1
       local waterLevel = 0
 
-      height = math.max(0, height - fragFloor) * heightScale
-      waterLevel = math.max(0, getWaterLevel(frag.water, idx) - fragFloor) * heightScale
+      height = height * heightScale
+      waterLevel = getWaterLevel(frag.water, idx) * heightScale
       
-      for j = 1, fragTerrainHeight do
+      for j = 1, _terrainHeight do
          local fill = math.max(0, math.min(1, height - j - 1))
          local water = math.max(0, waterLevel - j - 1)
          local mat = Enum.Material.Grass
@@ -68,10 +69,10 @@ local function buildTerrainFragment(frag, origin)
       end
    end	
 
-   print(string.format("Map: min:%s height:%s x:%s y:%s width:%s height:%s",
-                       fragFloor, fragTerrainHeight,
-                       frag.x, frag.y,
-                       frag.width, frag.height))
+   Log("Map: height:%s x:%s y:%s width:%s height:%s",
+       _terrainHeight,
+       frag.x, frag.y,
+       frag.width, frag.height)
    
    game.Workspace.Terrain:WriteVoxels(region, _terrainResolution, material, occupancy)
 end
@@ -80,13 +81,55 @@ local function loadFragmentFromService(id)
    local worldData = HttpService:GetAsync("http://localhost:9090/map.json?type=frag&id=" .. id)
    worldData = loadstring(worldData)()
 
-   local terrainOrigin = Vector3.new(worldData.size.x, 0, worldData.size.y) * -0.5 * 4
-   buildTerrainFragment(worldData, terrainOrigin)
-
-   -- Testing:  Objects
-   
+   buildTerrainFragment(worldData)
    
    return worldData.total, worldData.remaining
+end
+
+local function loadObjects()
+   local heightScale = 1 / 255 * _terrainHeight
+   local collections = ReplicatedStorage.Leveler
+   local container = Workspace.generated
+   local groupCount = 100
+
+   container:ClearAllChildren()
+
+   local objData = HttpService:GetAsync("http://localhost:9090/map.json?type=obj")
+   objData = loadstring(objData)()
+
+   local currentCount = 0
+   
+   for k,v in pairs(objData) do
+      local props = collections[k]:GetChildren()
+      local propCount = table.getn(props)
+
+      Log("%s props found.  Generating %s instances.", propCount, table.getn(v))
+
+      for i, pos in ipairs(v) do
+         if currentCount >= groupCount then
+            currentCount = 0
+            wait()
+         end
+         
+         local thisProp = props[math.random(propCount)]
+
+         local instancePos = Vector3.new(pos[1],
+                                         pos[2] * heightScale,
+                                         pos[3]) * _terrainResolution
+         local instanceCFrame =
+            CFrame.Angles(0, math.rad(math.random() * 360), 0) *
+            CFrame.new(instancePos)
+
+         local instance = thisProp:Clone()
+         instance.Parent = container
+         instance:SetPrimaryPartCFrame(instanceCFrame)
+
+         --
+         currentCount = currentCount + 1
+      end
+   end
+
+   Log("Object loading completed")
 end
 
 local function loadAllFragments()
@@ -96,13 +139,13 @@ local function loadAllFragments()
    local total = 0
 
    while current == 0 or current < total do
-      print(string.format("Loading %s/%s (%s%%)", current, total, (current / total) * 100))
+      Log("Loading %s/%s (%s%%)", current, total, (current / total) * 100)
       total = loadFragmentFromService(current)
       
       current = current + 1
    end
 
-   print("Completed")
+   Log("Completed")
 end
 
 local function loadTestArea()
@@ -119,20 +162,24 @@ local function loadTestArea()
    for y = startY, math.min(fragmentsPerRow, startY + area - 1)  do
       for x = startX, math.min(fragmentsPerRow, startX + area - 1) do
          local idx = (y - 1) * fragmentsPerRow + (x - 1)
-         print(string.format("Loading %sx%s (frag: %s).  %s/%s", x, y, idx, step, area*area))
+         Log("Loading %sx%s (frag: %s).  %s/%s", x, y, idx, step, area*area)
          loadFragmentFromService(idx)
 
          step = step + 1
       end
    end
 
-   print("Completed")
+   Log("Completed")
 end
 
 --------------
-if _full then
-   loadAllFragments()
-else
-   loadTestArea()
+loadObjects()
+
+if not _objectOnly then
+   if _full then
+      loadAllFragments()
+   else
+      loadTestArea()
+   end
 end
 
