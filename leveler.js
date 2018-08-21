@@ -131,9 +131,23 @@ function writeObjectDataToStream(stream, data) {
       }
 
       var center = [obj.x, obj.y];
-      var density = parseFloat(obj.type);
 
+      if(obj.point) {
+        var x = Math.floor(center[0])
+        var y = Math.floor(center[1])
+
+        if(x > 0 && x < heightmap.width &&
+           y > 0 && y < heightmap.height) {
+
+          var heightIdx = (y * heightmap.width + x) * 4
+          var height = heightmap.data[heightIdx]
+
+          group.push([x, height, y]);
+        }
+      }
+      
       if(obj.ellipse) {
+        var density = parseFloat(obj.type);
         var radius = obj.width * 0.5;
         var area = radius * radius * Math.PI;
         var count = Math.floor(area * density);
@@ -141,7 +155,7 @@ function writeObjectDataToStream(stream, data) {
         // Use center of object
         center = vector.add(center, [radius, radius]);
 
-        console.log(`${obj.name} ${radius} ${area} ${count}`);
+        // console.log(`${obj.name} ${radius} ${area} ${count}`);
 
         for(var i = 0; i < count; ++i) {
           var dir = vector.normalize(vector.rotateDeg([1, 0], Math.random() * 360));

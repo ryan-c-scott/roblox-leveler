@@ -149,6 +149,18 @@
                  "width":290.666666666667,
                  "x":1759,
                  "y":1499.66666666667
+                }, 
+                {
+                 "ellipse":true,
+                 "height":1090.66666666667,
+                 "id":61,
+                 "name":"trees",
+                 "rotation":0,
+                 "type":"0.00125",
+                 "visible":true,
+                 "width":1090.66666666667,
+                 "x":1767,
+                 "y":1735.66666666667
                 }],
          "opacity":1,
          "type":"objectgroup",
@@ -158,15 +170,27 @@
         }, 
         {
          "draworder":"topdown",
-         "name":"objects",
-         "objects":[],
+         "name":"spawns",
+         "objects":[
+                {
+                 "height":0,
+                 "id":53,
+                 "name":"spawn",
+                 "point":true,
+                 "rotation":0,
+                 "type":"",
+                 "visible":true,
+                 "width":0,
+                 "x":1520.90909090909,
+                 "y":1252.39393939394
+                }],
          "opacity":1,
          "type":"objectgroup",
          "visible":true,
          "x":0,
          "y":0
         }],
- "nextobjectid":53,
+ "nextobjectid":63,
  "orientation":"orthogonal",
  "renderorder":"right-down",
  "tiledversion":"1.1.6",
