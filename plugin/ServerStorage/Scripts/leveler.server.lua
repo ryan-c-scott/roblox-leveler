@@ -1,3 +1,5 @@
+local ChangeHistoryService = game:GetService("ChangeHistoryService")
+
 local HttpService = game:GetService("HttpService")
 local ReplicatedStorage = game:GetService('ReplicatedStorage')
 
@@ -87,6 +89,8 @@ local function loadFragmentFromService(id)
 end
 
 local function loadObjects()
+   ChangeHistoryService:SetEnabled(false)
+
    local heightScale = 1 / 255 * _terrainHeight
    local collections = ReplicatedStorage.Leveler
    local container = Workspace.generated
@@ -102,37 +106,51 @@ local function loadObjects()
    for k,v in pairs(objData) do
       local props = collections[k]:GetChildren()
       local propCount = table.getn(props)
+      local instanceCount = table.getn(v)
 
-      Log("%s props found.  Generating %s instances.", propCount, table.getn(v))
+      Log("%s props found.  Generating %s instances.", propCount, instanceCount)
 
       for i, pos in ipairs(v) do
          if currentCount >= groupCount then
             currentCount = 0
             wait()
+
+            Log("  %s/%s", i, instanceCount)
          end
          
          local thisProp = props[math.random(propCount)]
 
          local instancePos = Vector3.new(pos[1],
-                                         pos[2] * heightScale,
+                                         (pos[2] - 3) * heightScale,
                                          pos[3]) * _terrainResolution
          local instanceCFrame =
-            CFrame.Angles(0, math.rad(math.random() * 360), 0) *
-            CFrame.new(instancePos)
+            CFrame.new(instancePos) *
+            CFrame.Angles(0, math.rad(math.random() * 360), 0)
 
          local instance = thisProp:Clone()
          instance.Parent = container
-         instance:SetPrimaryPartCFrame(instanceCFrame)
 
+         -- Set position
+         if instance.ClassName == 'SpawnLocation' then
+            instance.CFrame = instanceCFrame
+            
+         else
+            instance:SetPrimaryPartCFrame(instanceCFrame)
+         end
+         
          --
          currentCount = currentCount + 1
       end
    end
 
    Log("Object loading completed")
+
+   ChangeHistoryService:SetEnabled(true)
 end
 
 local function loadAllFragments()
+   ChangeHistoryService:SetEnabled(false)
+
    game.Workspace.Terrain:Clear()
 
    local current = 0
@@ -146,9 +164,13 @@ local function loadAllFragments()
    end
 
    Log("Completed")
+
+   ChangeHistoryService:SetEnabled(true)
 end
 
 local function loadTestArea()
+   ChangeHistoryService:SetEnabled(false)
+
    game.Workspace.Terrain:Clear()
 
    local fragmentsPerRow = 3000 / 150
@@ -170,16 +192,24 @@ local function loadTestArea()
    end
 
    Log("Completed")
+
+   ChangeHistoryService:SetEnabled(true)
+end
+
+local function loadEverything()
+   loadObjects()
+   loadAllFragments()
+end
+
+local function addButton(toolbar, label, tooltip, icon, callback)
+   local button = toolbar:CreateButton(label, tooltip, icon)
+   button.Click:Connect(callback)
 end
 
 --------------
-loadObjects()
-
-if not _objectOnly then
-   if _full then
-      loadAllFragments()
-   else
-      loadTestArea()
-   end
-end
+local toolbar = plugin:CreateToolbar("ROyale Leveler")
+addButton(toolbar, "Terrain", "Generate full terrain", "rbxassetid://1507949215", loadAllFragments)
+addButton(toolbar, "Objects", "Generate objects", "rbxassetid://1507949215", loadObjects)
+addButton(toolbar, "Test Area", "Generate test terrain", "rbxassetid://1507949215", loadTestArea)
+addButton(toolbar, "Everything", "Generate everything", "rbxassetid://1507949215", loadEverything)
 
