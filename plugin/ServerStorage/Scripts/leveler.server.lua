@@ -88,6 +88,27 @@ local function loadFragmentFromService(id)
    return worldData.total, worldData.remaining
 end
 
+-- NOTE:  Don't call this from inside functions that have disabled ChangeHistoryService as it will reset the flag to true at the end
+local function clearObjects()
+   ChangeHistoryService:SetEnabled(false)
+   local container = Workspace.generated
+   container:ClearAllChildren()
+   ChangeHistoryService:SetEnabled(true)
+end
+
+-- NOTE:  Don't call this from inside functions that have disabled ChangeHistoryService as it will reset the flag to true at the end
+local function clearTerrain()
+   ChangeHistoryService:SetEnabled(false)
+   game.Workspace.Terrain:Clear()
+   ChangeHistoryService:SetEnabled(true)
+end
+
+-- NOTE:  Don't call this from inside functions that have disabled ChangeHistoryService as it will reset the flag to true at the end
+local function clearEverything()
+   clearObjects();
+   clearTerrain();
+end
+
 local function loadObjects()
    ChangeHistoryService:SetEnabled(false)
 
@@ -213,3 +234,6 @@ addButton(toolbar, "Objects", "Generate objects", "rbxassetid://1507949215", loa
 addButton(toolbar, "Test Area", "Generate test terrain", "rbxassetid://1507949215", loadTestArea)
 addButton(toolbar, "Everything", "Generate everything", "rbxassetid://1507949215", loadEverything)
 
+addButton(toolbar, "Clear Terrain", "Delete all terrain", "rbxassetid://1507949215", clearTerrain)
+addButton(toolbar, "Clear Objects", "Delete generated objects", "rbxassetid://1507949215", clearObjects)
+addButton(toolbar, "Clear Everything", "Delete everything", "rbxassetid://1507949215", clearEverything)
