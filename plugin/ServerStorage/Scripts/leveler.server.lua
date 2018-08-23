@@ -109,7 +109,7 @@ local function clearEverything()
    clearTerrain();
 end
 
-local function loadObjects()
+local function loadObjects(queryOptions)
    ChangeHistoryService:SetEnabled(false)
 
    local heightScale = 1 / 255 * _terrainHeight
@@ -119,7 +119,15 @@ local function loadObjects()
 
    container:ClearAllChildren()
 
-   local objData = HttpService:GetAsync("http://localhost:9090/map.json?type=obj")
+   local url = "http://localhost:9090/map.json?type=obj"
+
+   if queryOptions then
+      for k,v in pairs(queryOptions) do
+         url = string.format('%s&%s=%s', url, k, v)
+      end
+   end
+      
+   local objData = HttpService:GetAsync(url)
    objData = loadstring(objData)()
 
    local currentCount = 0
@@ -189,16 +197,23 @@ local function loadAllFragments()
    ChangeHistoryService:SetEnabled(true)
 end
 
-local function loadTestArea()
-   ChangeHistoryService:SetEnabled(false)
-
-   game.Workspace.Terrain:Clear()
-
+local function loadTestArea(objOnly)
    local fragmentsPerRow = 3000 / 150
    local area = _area or 4
 
    local startX = math.floor(fragmentsPerRow * 0.5 - area * 0.5)
    local startY = math.floor(fragmentsPerRow * 0.5 - area * 0.5)
+
+   --
+   loadObjects({secx = startX - 1, secy = startY - 1, secw = area, sech = area})
+
+   if objOnly then
+      return;
+   end
+   
+   ChangeHistoryService:SetEnabled(false)
+
+   game.Workspace.Terrain:Clear()
 
    local step = 1
    
@@ -232,6 +247,7 @@ local toolbar = plugin:CreateToolbar("ROyale Leveler")
 addButton(toolbar, "Terrain", "Generate full terrain", "rbxassetid://1507949215", loadAllFragments)
 addButton(toolbar, "Objects", "Generate objects", "rbxassetid://1507949215", loadObjects)
 addButton(toolbar, "Test Area", "Generate test terrain", "rbxassetid://1507949215", loadTestArea)
+addButton(toolbar, "Test Area (objects)", "Generate test terrain", "rbxassetid://1507949215", function() loadTestArea(true) end)
 addButton(toolbar, "Everything", "Generate everything", "rbxassetid://1507949215", loadEverything)
 
 addButton(toolbar, "Clear Terrain", "Delete all terrain", "rbxassetid://1507949215", clearTerrain)

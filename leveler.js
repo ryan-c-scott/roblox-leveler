@@ -59,7 +59,7 @@ var server = http.createServer(function(request, response) {
 
       case 'obj':
         console.log(`${requestTime} Requested: ${request.url} (${filename})`);
-        writeObjectDataToStream(response, data);
+        writeObjectDataToStream(response, data, query);
         break;
       }
 
@@ -109,13 +109,39 @@ function writeMapDataToStream(stream, data) {
   }
 }
 
-function writeObjectDataToStream(stream, data) {
+function writeObjectDataToStream(stream, data, queryOptions) {
   var raw = _jsonDataCache[data.filename];
   var heightmap = _imageDataCache[data.filename];
+  var fragmentSize = data.frag_size;
 
+  var mapMinX = 0;
+  var mapMinY = 0;
+  var mapMaxX = heightmap.width;
+  var mapMaxY = heightmap.height;
+  
   var out = {}
 
   console.log(data.filename);
+
+  if(queryOptions) {
+    if(queryOptions.secx) {
+      mapMinX = parseInt(queryOptions.secx) * fragmentSize;
+    }
+    
+    if(queryOptions.secy) {
+      mapMinY = parseInt(queryOptions.secy) * fragmentSize;
+    }
+    
+    if(queryOptions.secw) {
+      mapMaxX = mapMinX + parseInt(queryOptions.secw) * fragmentSize + fragmentSize;
+    }
+    
+    if(queryOptions.sech) {
+      mapMaxY = mapMinY + parseInt(queryOptions.secw) * fragmentSize + fragmentSize;
+    }
+  }
+
+  console.log("Limits: %s, %s, %s, %s", mapMinX, mapMinY, mapMaxX, mapMaxY);
   
   raw.layers.forEach((layer) => {
     if(layer.type != 'objectgroup' || layer.name === 'water') {
@@ -136,8 +162,8 @@ function writeObjectDataToStream(stream, data) {
         var x = Math.floor(center[0])
         var y = Math.floor(center[1])
 
-        if(x > 0 && x < heightmap.width &&
-           y > 0 && y < heightmap.height) {
+        if(x > mapMinX && x < mapMaxX &&
+           y > mapMinY && y < mapMaxY) {
 
           var heightIdx = (y * heightmap.width + x) * 4
           var height = heightmap.data[heightIdx]
@@ -164,8 +190,8 @@ function writeObjectDataToStream(stream, data) {
           var x = Math.floor(pos[0])
           var y = Math.floor(pos[1])
 
-          if(x > 0 && x < heightmap.width &&
-             y > 0 && y < heightmap.height) {
+          if(x > mapMinX && x < mapMaxX &&
+             y > mapMinY && y < mapMaxY) {
 
             var heightIdx = (y * heightmap.width + x) * 4
             var height = heightmap.data[heightIdx]
@@ -235,7 +261,9 @@ function loadMapFile(filename, enableCaching) {
 
 function parseMap(data, fragIndex) {
   var out = {fragments: [],
-             filename: data.filename}
+             filename: data.filename,
+             frag_size: data.tilewidth}
+  
   var maxFragmentSize = data.tilewidth;
 
   out.size = {x: data.width,
