@@ -339,10 +339,6 @@ function parseMap(data, fragIndex) {
       out.heightmap = [];
       out.water = [];
 
-      if(layer.properties && layer.properties.floor) {
-        out.floor = layer.properties.floor;
-      }
-      
       // TODO:  Look into using some form of RLE
       
       for(var y = 0; y < maxFragmentSize; ++y) {
