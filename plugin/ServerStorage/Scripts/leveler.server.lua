@@ -160,7 +160,7 @@ local function loadObjects(queryOptions)
          instance.Parent = container
 
          -- Set position
-         if instance.ClassName == 'SpawnLocation' then
+         if not instance:IsA('Model') then
             instance.CFrame = instanceCFrame
             
          else
@@ -199,7 +199,7 @@ end
 
 local function loadTestArea(objOnly)
    local fragmentsPerRow = 3000 / 150
-   local area = _area or 4
+   local area = _area or 10
 
    local startX = math.floor(fragmentsPerRow * 0.5 - area * 0.5)
    local startY = math.floor(fragmentsPerRow * 0.5 - area * 0.5)

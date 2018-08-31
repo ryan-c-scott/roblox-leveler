@@ -133,11 +133,11 @@ function writeObjectDataToStream(stream, data, queryOptions) {
     }
     
     if(queryOptions.secw) {
-      mapMaxX = mapMinX + parseInt(queryOptions.secw) * fragmentSize + fragmentSize;
+      mapMaxX = mapMinX + parseInt(queryOptions.secw) * fragmentSize;
     }
     
     if(queryOptions.sech) {
-      mapMaxY = mapMinY + parseInt(queryOptions.secw) * fragmentSize + fragmentSize;
+      mapMaxY = mapMinY + parseInt(queryOptions.secw) * fragmentSize;
     }
   }
 
