@@ -4,7 +4,7 @@ local HttpService = game:GetService("HttpService")
 local ReplicatedStorage = game:GetService('ReplicatedStorage')
 
 local _terrainResolution = 4;
-local _terrainHeight = 128;
+local _terrainHeight = 256;
 
 local function Log(...)
    print(string.format(...))
@@ -21,28 +21,61 @@ local function getWaterLevel(water, idx)
    return 0
 end
 
-local function buildTerrainFragment(frag)
-   local size = Vector3.new(frag.width, _terrainHeight, frag.height) * _terrainResolution
-   local offset = Vector3.new(frag.x, 0, frag.y) * _terrainResolution
-   local region = Region3.new(offset, offset + size)
+local function scaleModel(model)
+   -- Iterate all children setting size
+   -- Scale the position relative to the primary part
+   -- Maybe bail if no primary part is set?
 
-   region = region:ExpandToGrid(_terrainResolution)
+   local primary = model.PrimaryPart
+
+   if not primary then
+      return false
+   end
+
+   local primaryPos = primary.CFrame.Position
    
+   for _, descendant in pairs(model:GetDescendants()) do
+      if not descendant:IsA('Model') then
+         descendant.CFrame.Position = (descendant.CFrame.Position - primaryPos) * scale
+         descendant.Size = descendant.Size * scale
+            
+      else
+         scaleModel(descendant)
+      end
+   end
+end
+
+local function buildTerrainFragment(frag)
+   local verticalSliceCount = 2
+   local verticalSliceSize = _terrainHeight / verticalSliceCount
+      
    local material = {}
    local occupancy = {}
 
    -- Carve out the necessary tables
-   for x = 1, frag.width do
-      material[x] = {}
-      occupancy[x] = {}
+   for slice = 1, verticalSliceCount do
+      material[slice] = {}
+      occupancy[slice] = {}
       
-      for y = 1, _terrainHeight do
-         material[x][y] = {}
-         occupancy[x][y] = {}
+      for x = 1, frag.width do
+         material[slice][x] = {}
+         occupancy[slice][x] = {}
+         
+         for y = 1, verticalSliceSize do
+            material[slice][x][y] = {}
+            occupancy[slice][x][y] = {}
+         end
       end
-   end	
+   end
 
    local heightScale = 1 / 255 * _terrainHeight
+
+   -- TODO:  Should take a number of passes here
+   -- .Detecting whether or not it's necessary by running through all of the height values
+   -- .There's another optimization there to use a smaller region, but that's easier said than done.
+   -- .A basic optimization would be to limit the region size based on the max height found per slice
+   -- .All of this goes away with heightmap support
+   -- .Alternatively it could build each slice separately
 
    for i, height in ipairs(frag.heightmap) do
       local idx = i - 1
@@ -52,31 +85,47 @@ local function buildTerrainFragment(frag)
 
       height = height * heightScale
       waterLevel = getWaterLevel(frag.water, idx) * heightScale
-      
-      for j = 1, _terrainHeight do
-         local fill = math.max(0, math.min(1, height - j - 1))
-         local water = math.max(0, waterLevel - j - 1)
-         local mat = Enum.Material.Grass
 
-         if fill > 0 and fill < 1 and water > 0 then
-            mat = Enum.Material.Sand
-            
-         elseif fill == 0 and water > 0 then
-            mat = Enum.Material.Water
-            fill = 1
-         end
+      for slice = 1, verticalSliceCount do
          
-         occupancy[x][j][y] = fill
-         material[x][j][y] = mat
+         for j = 1, verticalSliceSize do
+            local sliceOffset = verticalSliceSize * (slice - 1)
+            local sliceRelativeHeight = height - sliceOffset * heightScale
+            local fill = math.max(0, math.min(1, sliceRelativeHeight - j - 1))
+            local water = math.max(0, waterLevel - j - sliceOffset - 1)
+            local mat = Enum.Material.Grass
+
+            if fill > 0 and fill < 1 and water > 0 then
+               mat = Enum.Material.Sand
+               
+            elseif fill == 0 and water > 0 then
+               mat = Enum.Material.Water
+               fill = 1
+            end
+            
+            occupancy[slice][x][j][y] = fill
+            material[slice][x][j][y] = mat
+         end
       end
    end	
 
-   Log("Map: height:%s x:%s y:%s width:%s height:%s",
-       _terrainHeight,
-       frag.x, frag.y,
-       frag.width, frag.height)
-   
-   game.Workspace.Terrain:WriteVoxels(region, _terrainResolution, material, occupancy)
+   for slice = 1, verticalSliceCount do
+      Log("Map: slice:%s height:%s x:%s y:%s width:%s height:%s",
+          slice,
+          _terrainHeight,
+          frag.x, frag.y,
+          frag.width, frag.height)
+
+      -- TODO:  Modify the region
+      local size = Vector3.new(frag.width, verticalSliceSize, frag.height) * _terrainResolution
+      local offset = Vector3.new(frag.x, verticalSliceSize * (slice - 1), frag.y) * _terrainResolution
+      local region = Region3.new(offset, offset + size)
+
+      region = region:ExpandToGrid(_terrainResolution)
+
+      game.Workspace.Terrain:WriteVoxels(region, _terrainResolution,
+                                         material[slice], occupancy[slice])
+   end
 end
 
 local function loadFragmentFromService(id)
@@ -136,6 +185,7 @@ local function loadObjects(queryOptions)
       local props = collections[k]:GetChildren()
       local propCount = table.getn(props)
       local instanceCount = table.getn(v)
+      local scale = 1
 
       Log("%s props found.  Generating %s instances.", propCount, instanceCount)
 
@@ -152,6 +202,16 @@ local function loadObjects(queryOptions)
          local instancePos = Vector3.new(pos[1],
                                          (pos[2] - 3) * heightScale,
                                          pos[3]) * _terrainResolution
+
+         if thisProp:IsA('Model') then
+            instancePos = instancePos + Vector3.new(0, thisProp.PrimaryPart.Size.Y * 0.5, 0)
+         end
+
+         local offset = thisProp:FindFirstChild('PositionOffset')
+         if offset then
+            instancePos = instancePos + offset.Value
+         end
+         
          local instanceCFrame =
             CFrame.new(instancePos) *
             CFrame.Angles(0, math.rad(math.random() * 360), 0)
@@ -162,6 +222,7 @@ local function loadObjects(queryOptions)
          -- Set position
          if not instance:IsA('Model') then
             instance.CFrame = instanceCFrame
+            instance.Size = instance.Size * scale
             
          else
             instance:SetPrimaryPartCFrame(instanceCFrame)
@@ -198,7 +259,7 @@ local function loadAllFragments()
 end
 
 local function loadTestArea(objOnly)
-   local fragmentsPerRow = 3000 / 150
+   local fragmentsPerRow = 1875 / 125
    local area = _area or 10
 
    local startX = math.floor(fragmentsPerRow * 0.5 - area * 0.5)

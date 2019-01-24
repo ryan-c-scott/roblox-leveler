@@ -16,7 +16,7 @@ const vector = kmath.vector;
 var _imageDataCache = {}
 var _jsonDataCache = {}
 
-var server = http.createServer(function(request, response) {
+var server = http.createServer(async function(request, response) {
   var mapUrl = url.parse(request.url);
   var filename = path.normalize(mapUrl.pathname);
   var query = querystring.parse(mapUrl.query);
@@ -45,36 +45,38 @@ var server = http.createServer(function(request, response) {
     return;
   }
 
-  loadMapFile(filename, query.type != 'obj')
-    .then((data) => {return parseMap(data, fragIndex);})
-    .then(function(data) {
-      response.writeHead(200);
-      response.write('return ', 'binary');
+  try {
+    var data = await loadMapFile(filename, query.type != 'obj')
+    data = await parseMap(data, fragIndex);
+    response.writeHead(200);
+    response.write('return ', 'binary');
 
-      switch(query.type) {
-      case 'frag':
-        console.log(`${requestTime} Requested: ${request.url} (${filename} @ ${fragIndex})`);
-        writeMapDataToStream(response, data);
-        break;
+    switch(query.type) {
+    case 'frag':
+      console.log(`${requestTime} Requested: ${request.url} (${filename} @ ${fragIndex})`);
+      writeMapDataToStream(response, data);
+      break;
 
-      case 'obj':
-        console.log(`${requestTime} Requested: ${request.url} (${filename})`);
-        writeObjectDataToStream(response, data, query);
-        break;
-      }
+    case 'obj':
+      console.log(`${requestTime} Requested: ${request.url} (${filename})`);
+      writeObjectDataToStream(response, data, query);
+      break;
+    }
 
-      //
-      response.end();
-    })
-    .catch(function(e) {
-      console.log(`${requestTime} Error requesting file: ${filename}`);
-      response.writeHead(404);
-      response.end(e.message);
+    //
+    response.end();
+  }
+  catch(e) {
+    console.log(`${requestTime} Error requesting file: ${filename}`);
+    response.writeHead(404);
+    response.end(e.message);
 
-      throw(e);
-    });
+    throw(e);
+  }
 
 }).listen(9090);
+
+console.log("Listening on 9090");
 
 ///////////
 function writeMapDataToStream(stream, data) {
@@ -198,6 +200,8 @@ function writeObjectDataToStream(stream, data, queryOptions) {
 
             // Testing:  No object placement in water
             if(heightmap.data[heightIdx + 2] == 0) {
+              // TODO:  Add scale
+              // .Calculated from a min + variance (which can be omitted in Tiled and default to 1
               group.push([x, height, y]);
             }
           }
@@ -305,9 +309,9 @@ function parseMap(data, fragIndex) {
             var x = Math.floor(obj.x);
             var y = Math.floor(obj.y);
             
-            var depth = obj.properties.depth;
+            var depth = obj.properties.find((elem) => {return elem.name == 'depth';}).value;
             var threshold = imageData.data[(y * imageData.width + x) * 4] + depth;
-            
+
             floodFill(imageData.data, 2, x, y, imageData.width, imageData.height, threshold);
           });
         });
