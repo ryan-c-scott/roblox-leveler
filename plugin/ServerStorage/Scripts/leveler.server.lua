@@ -260,7 +260,7 @@ end
 
 local function loadTestArea(objOnly)
    local fragmentsPerRow = 1875 / 125
-   local area = _area or 10
+   local area = _area or 1
 
    local startX = math.floor(fragmentsPerRow * 0.5 - area * 0.5)
    local startY = math.floor(fragmentsPerRow * 0.5 - area * 0.5)
