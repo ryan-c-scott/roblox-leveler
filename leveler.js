@@ -347,12 +347,39 @@ function parseMap(data, fragIndex) {
       
       for(var y = 0; y < maxFragmentSize; ++y) {
         for(var x = 0; x < maxFragmentSize; ++x) {
-
           var val = imageData.data[((offsetY + y) * imageData.width + (offsetX + x)) * 4];
+
+          var sampleCount = 0;
+          var sampleTotal = 0;
+
+          // Sample neighbors to handle the aliasing caused by 1 pixel = 4x4 studs.
+          for(var nY = -1; nY <= 1; ++nY) {
+            for(var nX = -1; nX <= 1; ++nX) {
+              var thisY = y + nY + offsetY;
+              var thisX = x + nX + offsetX;
+              
+              if(thisY >= 0 && thisY < imageData.width &&
+                 thisX >= 0 && thisX < imageData.width) {
+                 
+                sampleTotal += imageData.data[((thisY) * imageData.width + thisX) * 4]
+                sampleCount++;
+              }
+            }
+          }
+
+          val = sampleTotal / sampleCount;
+
+          if(!val) {
+            val = 0;
+          }
+          
           out.heightmap.push(val);
         }
       }
 
+      // TODO:  Smooth out the water values as well
+      // .Maybe best to do all of this up front and store that instead of, or in addition to, the image data
+      
       // Water from blue channel
       {
         var startIdx = 0;
