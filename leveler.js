@@ -14,6 +14,7 @@ const kmath = require('kmath');
 const vector = kmath.vector;
 
 var _imageDataCache = {}
+var _heightmapDataCache = {}
 var _jsonDataCache = {}
 
 var server = http.createServer(async function(request, response) {
@@ -213,7 +214,7 @@ function writeObjectDataToStream(stream, data, queryOptions) {
   writeMapDataToStream(stream, out);
 }
 
-function floodFill(data, offset, x, y, w, h, threshold) {
+function floodFill(data, stride, offset, x, y, w, h, threshold) {
   var queue = [[x, y]];
 
   console.log(`flood: ${threshold}`);
@@ -222,7 +223,7 @@ function floodFill(data, offset, x, y, w, h, threshold) {
     var point = queue.pop();
     var px = point[0];
     var py = point[1];
-    var idx = (py * w + px) * 4;
+    var idx = (py * w + px) * stride;
 
     // Change value
     if(data[idx] < threshold) {
@@ -274,25 +275,76 @@ function parseMap(data, fragIndex) {
               y: data.height};
 
   data.layers.forEach(function(layer) {
-    if(layer.type === 'imagelayer') {
+    if(layer.type === 'imagelayer' && layer.name == 'terrain') {
       var imagePath = layer.image;
 
       var raw = fs.readFileSync(imagePath);
       var imageData;
+      var heightmapData;
 
       if(fragIndex != 0) {
         imageData = _imageDataCache[data.filename];
+        heightmapData = _heightmapDataCache[data.filename];
       }
 
+      // TODO:  Process all image data and then store all of the processed results in a cache.
+      // .Easy enough to just keep around both the image and the processed data.
+      
       if(!imageData) {
         console.log("Loading image data");
         imageData = pngjs.PNG.sync.read(raw);
 
+        // 2 channels of heightmap data
+        heightmapData = Array(imageData.data.length >> 1);
+
         // Wipe out green and blue channels
-        for(var i = 0; i < imageData.data.length; ++i) {
-          imageData.data[i * 4 + 1] = 0;
-          imageData.data[i * 4 + 2] = 0;
+        for(var i = 0; i < imageData.data.length; i+=4) {
+          imageData.data[i + 1] = 0;
+          imageData.data[i + 2] = 0;
         }
+
+        // Populate the calculated heightmap data (ie. with smoothing)
+        for(var y = 0; y < imageData.height; ++y) {
+          for(var x = 0; x < imageData.width; ++x) {
+
+            ////
+            var idx = (y * imageData.width + x)
+            var val = imageData.data[idx * 4];
+
+            var sampleCount = 0;
+            var sampleTotal = 0;
+
+            // Sample neighbors to handle the aliasing caused by 1 pixel = 4x4 studs.
+            for(var nY = -1; nY <= 1; ++nY) {
+              for(var nX = -1; nX <= 1; ++nX) {
+                var thisY = y + nY;
+                var thisX = x + nX;
+            
+                if(thisY >= 0 && thisY < imageData.height &&
+                   thisX >= 0 && thisX < imageData.width) {
+            
+                  sampleTotal += imageData.data[((thisY) * imageData.width + thisX) * 4]
+                  sampleCount++;
+                }
+              }
+            }
+
+            val = sampleTotal / sampleCount;
+
+            if(!val) {
+              val = 0;
+            }
+
+            heightmapData[idx * 2] = val;
+
+            ////
+            
+          }
+        } // end per-pixel loop
+
+        _imageDataCache[data.filename] = imageData;
+        _heightmapDataCache[data.filename] = heightmapData;
+
         
         // Blue channel as water level
         // .Iterate through all objects of type 'point' and flood to the depth specified
@@ -310,15 +362,19 @@ function parseMap(data, fragIndex) {
             var y = Math.floor(obj.y);
             
             var depth = obj.properties.find((elem) => {return elem.name == 'depth';}).value;
-            var threshold = imageData.data[(y * imageData.width + x) * 4] + depth;
+            var threshold = heightmapData[(y * imageData.width + x) * 2] + depth;
 
-            floodFill(imageData.data, 2, x, y, imageData.width, imageData.height, threshold);
+            floodFill(heightmapData, 2, 1, x, y, imageData.width, imageData.height, threshold);
           });
         });
-      }
 
-      _imageDataCache[data.filename] = imageData;
-      
+        // Hack:  We update the image data to show the water generated water level (since we use that for generating a minimap)
+        for(var i = 2; i < imageData.data.length; i += 4) {
+          imageData.data[i] = Math.floor(heightmapData[i >> 1]);
+        }
+        
+      }  // end image processing
+
       var heightmapWidth = imageData.width;
       var heightmapHeight = imageData.height;
 
@@ -347,39 +403,12 @@ function parseMap(data, fragIndex) {
       
       for(var y = 0; y < maxFragmentSize; ++y) {
         for(var x = 0; x < maxFragmentSize; ++x) {
-          var val = imageData.data[((offsetY + y) * imageData.width + (offsetX + x)) * 4];
-
-          var sampleCount = 0;
-          var sampleTotal = 0;
-
-          // Sample neighbors to handle the aliasing caused by 1 pixel = 4x4 studs.
-          for(var nY = -1; nY <= 1; ++nY) {
-            for(var nX = -1; nX <= 1; ++nX) {
-              var thisY = y + nY + offsetY;
-              var thisX = x + nX + offsetX;
-              
-              if(thisY >= 0 && thisY < imageData.width &&
-                 thisX >= 0 && thisX < imageData.width) {
-                 
-                sampleTotal += imageData.data[((thisY) * imageData.width + thisX) * 4]
-                sampleCount++;
-              }
-            }
-          }
-
-          val = sampleTotal / sampleCount;
-
-          if(!val) {
-            val = 0;
-          }
-          
+          var idx = (offsetY + y) * imageData.width + (offsetX + x);
+          var val = heightmapData[idx * 2];
           out.heightmap.push(val);
         }
       }
 
-      // TODO:  Smooth out the water values as well
-      // .Maybe best to do all of this up front and store that instead of, or in addition to, the image data
-      
       // Water from blue channel
       {
         var startIdx = 0;
@@ -389,9 +418,9 @@ function parseMap(data, fragIndex) {
         for(var y = 0; y < maxFragmentSize; ++y) {
           for(var x = 0; x < maxFragmentSize; ++x) {
             var i = y * maxFragmentSize + x;
-            var dataIdx = ((offsetY + y) * imageData.width + (offsetX + x)) * 4 + 2;
+            var dataIdx = ((offsetY + y) * imageData.width + (offsetX + x)) * 2 + 1;
 
-            var thisHeight = imageData.data[dataIdx];
+            var thisHeight = heightmapData[dataIdx];
 
             if(thisHeight > 0) {
               if(!on) {
