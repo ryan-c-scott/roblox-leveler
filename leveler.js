@@ -226,23 +226,22 @@ function floodFill(data, stride, offset, x, y, w, h, threshold) {
     var idx = (py * w + px) * stride;
 
     // Change value
-    if(data[idx] < threshold) {
-      var current = data[idx + offset];
+    var current = data[idx + offset];
+    if(data[idx] < threshold && current < threshold && current >= 0) {
 
       // Queue all neighbors
-      if(current != threshold) {
-        data[idx + offset] = threshold;
-        
-        for(var ny = py - 1; ny <= py + 1; ++ny) {
-          for(var nx = px - 1; nx <= px + 1; ++nx) {
-            if((ny != py || nx != px) &&
-               (ny < h && ny >= 0 &&
-                nx < w && nx >= 0)){
+      data[idx + offset] = threshold;
+      
+      for(var ny = py - 1; ny <= py + 1; ++ny) {
+        for(var nx = px - 1; nx <= px + 1; ++nx) {
+          if((ny != py || nx != px) &&
+             (ny < h && ny >= 0 &&
+              nx < w && nx >= 0)){
 
-              queue.push([nx, ny]);
-            }
+            queue.push([nx, ny]);
           }
         }
+
       }
     }
   }
@@ -299,6 +298,9 @@ function parseMap(data, fragIndex) {
 
         // Wipe out green and blue channels
         for(var i = 0; i < imageData.data.length; i+=4) {
+          // HACK:  Using green channel values to specify water flood barriers
+          heightmapData[(i >> 1) + 1] = (imageData.data[i + 1] - imageData.data[i] > 0) ? -1.0 : 0;
+
           imageData.data[i + 1] = 0;
           imageData.data[i + 2] = 0;
         }
@@ -372,7 +374,7 @@ function parseMap(data, fragIndex) {
         for(var i = 2; i < imageData.data.length; i += 4) {
           imageData.data[i] = Math.floor(heightmapData[i >> 1]);
         }
-        
+
       }  // end image processing
 
       var heightmapWidth = imageData.width;
