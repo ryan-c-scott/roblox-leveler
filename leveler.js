@@ -152,8 +152,9 @@ function writeObjectDataToStream(stream, data, queryOptions) {
     }
 
     layer.objects.forEach((obj) => {
-      var group = out[obj.name];
-  
+      var name = obj.name || layer.name;
+      var group = out[name];
+      
       if(!group) {
         group = [];
         out[obj.name] = group;
@@ -184,7 +185,7 @@ function writeObjectDataToStream(stream, data, queryOptions) {
         // Use center of object
         center = vector.add(center, [radius, radius]);
 
-        // console.log(`${obj.name} ${radius} ${area} ${count}`);
+        // console.log(`${name} ${radius} ${area} ${count}`);
 
         for(var i = 0; i < count; ++i) {
           var dir = vector.normalize(vector.rotateDeg([1, 0], Math.random() * 360));
