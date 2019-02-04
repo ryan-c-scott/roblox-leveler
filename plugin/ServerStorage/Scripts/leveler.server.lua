@@ -21,26 +21,31 @@ local function getWaterLevel(water, idx)
    return 0
 end
 
-local function scaleModel(model)
+local function objectCanBePositioned(obj)
+   if not obj:IsA('Model') and (obj:IsA('Part') or obj:IsA('UnionObject') or obj:IsA('MeshPart')) then
+      return true
+   end
+
+   return false
+end
+
+local function scaleObject(obj, scale)
    -- Iterate all children setting size
    -- Scale the position relative to the primary part
    -- Maybe bail if no primary part is set?
 
-   local primary = model.PrimaryPart
+   for _, descendant in pairs(obj:GetDescendants()) do
+      if objectCanBePositioned(descendant) then
+         local primary = obj.PrimaryPart
 
-   if not primary then
-      return false
-   end
-
-   local primaryPos = primary.CFrame.Position
-   
-   for _, descendant in pairs(model:GetDescendants()) do
-      if not descendant:IsA('Model') then
-         descendant.CFrame.Position = (descendant.CFrame.Position - primaryPos) * scale
-         descendant.Size = descendant.Size * scale
+         if primary then
+            local primaryPos = primary.CFrame.Position
             
+            descendant.CFrame = CFrame.new((descendant.CFrame.Position - primaryPos) * scale + primaryPos)
+            descendant.Size = descendant.Size * scale
+         end            
       else
-         scaleModel(descendant)
+         scaleObject(descendant, scale)
       end
    end
 end
@@ -185,11 +190,14 @@ local function loadObjects(queryOptions)
       local props = collections[k]:GetChildren()
       local propCount = table.getn(props)
       local instanceCount = table.getn(v)
-      local scale = 1
 
       Log("%s props found.  Generating %s instances.", propCount, instanceCount)
 
       for i, pos in ipairs(v) do
+         local randomAmount = pos[4] or 0
+         local baseScale = pos[5] or 1
+         local scale = baseScale + math.random() * randomAmount
+         
          if currentCount >= groupCount then
             currentCount = 0
             wait()
@@ -204,17 +212,18 @@ local function loadObjects(queryOptions)
                                          pos[3]) * _terrainResolution
 
          if thisProp:IsA('Model') then
-            instancePos = instancePos + Vector3.new(0, thisProp.PrimaryPart.Size.Y * 0.5, 0)
+            instancePos = instancePos + Vector3.new(0, thisProp.PrimaryPart.Size.Y * 0.5 * scale, 0)
          end
 
          local offset = thisProp:FindFirstChild('PositionOffset')
          if offset then
-            instancePos = instancePos + offset.Value
+            instancePos = instancePos + offset.Value * scale
          end
          
-         local instanceCFrame =
-            CFrame.new(instancePos) *
-            CFrame.Angles(0, math.rad(math.random() * 360), 0)
+         local instanceCFrame = CFrame.new(instancePos)
+         if randomAmount and randomAmount > 0 then
+            instanceCFrame = instanceCFrame * CFrame.Angles(0, math.rad(math.random() * 360), 0)
+         end
 
          local instance = thisProp:Clone()
          instance.Parent = container
@@ -222,10 +231,14 @@ local function loadObjects(queryOptions)
          -- Set position
          if not instance:IsA('Model') then
             instance.CFrame = instanceCFrame
-            instance.Size = instance.Size * scale
             
          else
             instance:SetPrimaryPartCFrame(instanceCFrame)
+         end
+
+         -- Scale
+         if scale ~= 1 then
+            scaleObject(instance, scale)
          end
          
          --

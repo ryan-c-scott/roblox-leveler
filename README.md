@@ -40,12 +40,20 @@ local m = pixels * 4 / 3
 * height - The height of the terrain to generate.
 
 ## Water
-Areas of water are specified using `Point` objects on an `Object Layer`.  The specified `depth` is used to flood fill the heightmap at the specified position.
+Areas of water are specified using `Point` objects on an `Object Layer` name `water`.  The specified `depth` is used to flood fill the heightmap at the specified position.
 
 ### Custom Properties
 * depth - The surface of the water _above_ the height at the specified point.
 
-## Object Areas
+## Objects
+Object names must correspond to asset folders in Studio.
+Objects that are not given a name directly will use their layer's name.
+
+### Custom Properties
+* random
+* base
+
+### Object Areas
 Object areas are circles (`Ellipses` with the uniform `height` and `width`).
 The property `type` is read by the service as a float representing the density of the placement of objects in that area.
 

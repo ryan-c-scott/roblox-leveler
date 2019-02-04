@@ -112,6 +112,12 @@ function writeMapDataToStream(stream, data) {
   }
 }
 
+function getObjectProperty(obj, key) {
+  if(obj.properties) {
+    return obj.properties.find((elem) => {return elem.name == key;}).value;
+  }
+}
+
 function writeObjectDataToStream(stream, data, queryOptions) {
   var raw = _jsonDataCache[data.filename];
   var heightmap = _imageDataCache[data.filename];
@@ -151,10 +157,15 @@ function writeObjectDataToStream(stream, data, queryOptions) {
       return;
     }
 
+    var layerRandom = getObjectProperty(layer, 'random');
+    var layerBaseSize = getObjectProperty(layer, 'base');
+
     layer.objects.forEach((obj) => {
       var name = obj.name || layer.name;
+      var randomAmount = getObjectProperty(obj, 'random') || layerRandom;
+      var baseSize = getObjectProperty(obj, 'random') || layerBaseSize;
       var group = out[name];
-      
+
       if(!group) {
         group = [];
         out[obj.name] = group;
@@ -170,9 +181,15 @@ function writeObjectDataToStream(stream, data, queryOptions) {
            y > mapMinY && y < mapMaxY) {
 
           var heightIdx = (y * heightmap.width + x) * 4
-          var height = heightmap.data[heightIdx]
+          var height = heightmap.data[heightIdx];
+          var objData = [x, height, y];
 
-          group.push([x, height, y]);
+          if(randomAmount || baseSize) {
+            objData.push(randomAmount || 0);
+            objData.push(baseSize || 1);
+          }
+          
+          group.push(objData);
         }
       }
       
@@ -200,11 +217,15 @@ function writeObjectDataToStream(stream, data, queryOptions) {
             var heightIdx = (y * heightmap.width + x) * 4
             var height = heightmap.data[heightIdx]
 
-            // Testing:  No object placement in water
             if(heightmap.data[heightIdx + 2] == 0) {
-              // TODO:  Add scale
-              // .Calculated from a min + variance (which can be omitted in Tiled and default to 1
-              group.push([x, height, y]);
+              var objData = [x, height, y];
+
+              if(randomAmount || baseSize) {
+                objData.push(randomAmount || 0);
+                objData.push(baseSize || 1);
+              }
+              
+              group.push(objData);
             }
           }
         }
