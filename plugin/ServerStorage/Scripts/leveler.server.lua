@@ -163,6 +163,20 @@ local function clearEverything()
    clearTerrain();
 end
 
+local function logObjectStats(stats)
+   Log("Object Stats (%s instances):\n", stats.instance_total)
+
+   Log("Count by Groups:")
+   for k,v in pairs(stats.groups) do
+      Log("\t%s: %s", k, v)
+   end
+
+   Log("\nCount by object:")
+   for k,v in pairs(stats.instances) do
+      Log("\t%s: %s", k, v)
+   end
+end
+
 local function loadObjects(queryOptions)
    ChangeHistoryService:SetEnabled(false)
 
@@ -170,6 +184,7 @@ local function loadObjects(queryOptions)
    local collections = ReplicatedStorage.Leveler
    local container = Workspace.generated
    local groupCount = 100
+   local stats = {groups = {}, instances = {}}
 
    container:ClearAllChildren()
 
@@ -191,6 +206,9 @@ local function loadObjects(queryOptions)
       local propCount = table.getn(props)
       local instanceCount = table.getn(v)
 
+      stats.groups[k] = (stats.groups[k] or 0) + instanceCount
+      stats.instance_total = (stats.instance_total or 0) + instanceCount
+      
       Log("%s props found.  Generating %s instances.", propCount, instanceCount)
 
       for i, pos in ipairs(v) do
@@ -206,6 +224,7 @@ local function loadObjects(queryOptions)
          end
          
          local thisProp = props[math.random(propCount)]
+         stats.instances[thisProp.Name] = (stats.instances[thisProp.Name] or 0) + 1
 
          local instancePos = Vector3.new(pos[1],
                                          (pos[2] - 3) * heightScale,
@@ -246,8 +265,10 @@ local function loadObjects(queryOptions)
       end
    end
 
+   logObjectStats(stats)
+   
    Log("Object loading completed")
-
+   
    ChangeHistoryService:SetEnabled(true)
 end
 
