@@ -168,7 +168,7 @@ function writeObjectDataToStream(stream, data, queryOptions) {
 
       if(!group) {
         group = [];
-        out[obj.name] = group;
+        out[name] = group;
       }
 
       var center = [obj.x, obj.y];
