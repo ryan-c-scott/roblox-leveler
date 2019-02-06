@@ -225,13 +225,20 @@ local function loadObjects(queryOptions)
          
          local thisProp = props[math.random(propCount)]
          stats.instances[thisProp.Name] = (stats.instances[thisProp.Name] or 0) + 1
-
+         local propCFrame = nil
          local instancePos = Vector3.new(pos[1],
                                          (pos[2] - 3) * heightScale,
                                          pos[3]) * _terrainResolution
 
          if thisProp:IsA('Model') then
             instancePos = instancePos + Vector3.new(0, thisProp.PrimaryPart.Size.Y * 0.5 * scale, 0)
+            propCFrame = thisProp.PrimaryPart.CFrame
+
+         elseif thisProp:IsA('MeshPart') then
+            instancePos = instancePos + Vector3.new(0, thisProp.Size.Y * 0.5 * scale, 0)
+            propCFrame = thisProp.CFrame
+         else
+            propCFrame = CFrame.new()
          end
 
          local offset = thisProp:FindFirstChild('PositionOffset')
@@ -239,7 +246,7 @@ local function loadObjects(queryOptions)
             instancePos = instancePos + offset.Value * scale
          end
          
-         local instanceCFrame = CFrame.new(instancePos)
+         local instanceCFrame = propCFrame * CFrame.new(instancePos - propCFrame.Position)
          if randomAmount and randomAmount > 0 then
             instanceCFrame = instanceCFrame * CFrame.Angles(0, math.rad(math.random() * 360), 0)
          end
