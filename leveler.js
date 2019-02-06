@@ -114,7 +114,8 @@ function writeMapDataToStream(stream, data) {
 
 function getObjectProperty(obj, key) {
   if(obj.properties) {
-    return obj.properties.find((elem) => {return elem.name == key;}).value;
+    var prop = obj.properties.find((elem) => {return elem.name == key;});
+    return prop ? prop.value : undefined;
   }
 }
 
