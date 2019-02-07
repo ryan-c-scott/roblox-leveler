@@ -50,6 +50,45 @@ local function scaleObject(obj, scale)
    end
 end
 
+local function transformObj(obj, xform, scale)
+   if obj:isA('Model') then
+      local primary = obj.PrimaryPart
+
+      if not primary then
+         return;
+      end
+      
+      obj:SetPrimaryPartCFrame(xform)
+      primary.Size = primary.Size * scale
+      
+      for _, descendant in pairs(obj:GetDescendants()) do
+         if descendant ~= primary and objectCanBePositioned(descendant) then
+            -- Get position relative to primary part, scale it, and then apply that transform
+            local offset = (descendant.CFrame.Position - primary.CFrame.Position)
+            descendant.CFrame = descendant.CFrame * CFrame.new(offset * scale - offset)
+            descendant.Size = descendant.Size * scale
+         end
+      end
+
+   elseif objectCanBePositioned(obj) then
+      obj.CFrame = xform
+      obj.Size = obj.Size * scale
+   end
+end
+
+local function offsetObjectToBottom(obj)
+   -- Depending on type, get its size and offset up by half of that
+   if obj:isA('Model') then
+      if obj.PrimaryPart then
+         obj:SetPrimaryPartCFrame(obj.PrimaryPart.CFrame *
+                                     CFrame.new(0, obj.PrimaryPart.Size.Y * 0.5, 0))
+      end
+      
+   elseif objectCanBePositioned(obj) then
+      obj.CFrame = obj.CFrame * CFrame.new(0, obj.Size.Y * 0.5, 0)
+   end
+end
+
 local function buildTerrainFragment(frag)
    local verticalSliceCount = 2
    local verticalSliceSize = _terrainHeight / verticalSliceCount
@@ -231,20 +270,20 @@ local function loadObjects(queryOptions)
                                          pos[3]) * _terrainResolution
 
          if thisProp:IsA('Model') then
-            instancePos = instancePos + Vector3.new(0, thisProp.PrimaryPart.Size.Y * 0.5 * scale, 0)
             propCFrame = thisProp.PrimaryPart.CFrame
 
          elseif thisProp:IsA('MeshPart') then
-            instancePos = instancePos + Vector3.new(0, thisProp.Size.Y * 0.5 * scale, 0)
             propCFrame = thisProp.CFrame
          else
             propCFrame = CFrame.new()
          end
 
-         local offset = thisProp:FindFirstChild('PositionOffset')
-         if offset then
-            instancePos = instancePos + offset.Value * scale
-         end
+         -- TODO:  Does this make sense anymore?
+         -- .I think it should be rolled into the propCFrame
+         -- local offset = thisProp:FindFirstChild('PositionOffset')
+         -- if offset then
+         --    instancePos = instancePos + offset.Value * scale
+         -- end
          
          local instanceCFrame = propCFrame * CFrame.new(instancePos - propCFrame.Position)
          if randomAmount and randomAmount > 0 then
@@ -254,18 +293,8 @@ local function loadObjects(queryOptions)
          local instance = thisProp:Clone()
          instance.Parent = container
 
-         -- Set position
-         if not instance:IsA('Model') then
-            instance.CFrame = instanceCFrame
-            
-         else
-            instance:SetPrimaryPartCFrame(instanceCFrame)
-         end
-
-         -- Scale
-         if scale ~= 1 then
-            scaleObject(instance, scale)
-         end
+         transformObj(instance, instanceCFrame, scale)
+         offsetObjectToBottom(instance)
          
          --
          currentCount = currentCount + 1
