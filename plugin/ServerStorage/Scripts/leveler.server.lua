@@ -29,27 +29,6 @@ local function objectCanBePositioned(obj)
    return false
 end
 
-local function scaleObject(obj, scale)
-   -- Iterate all children setting size
-   -- Scale the position relative to the primary part
-   -- Maybe bail if no primary part is set?
-
-   for _, descendant in pairs(obj:GetDescendants()) do
-      if objectCanBePositioned(descendant) then
-         local primary = obj.PrimaryPart
-
-         if primary then
-            local primaryPos = primary.CFrame.Position
-            
-            descendant.CFrame = CFrame.new((descendant.CFrame.Position - primaryPos) * scale + primaryPos)
-            descendant.Size = descendant.Size * scale
-         end            
-      else
-         scaleObject(descendant, scale)
-      end
-   end
-end
-
 local function transformObj(obj, xform, scale)
    if obj:isA('Model') then
       local primary = obj.PrimaryPart
