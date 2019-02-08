@@ -55,16 +55,16 @@ local function transformObj(obj, xform, scale)
    end
 end
 
-local function offsetObjectToBottom(obj)
+local function offsetObjectToBottom(obj, groundOffset)
    -- Depending on type, get its size and offset up by half of that
    if obj:isA('Model') then
       if obj.PrimaryPart then
-         obj:SetPrimaryPartCFrame(obj.PrimaryPart.CFrame *
-                                     CFrame.new(0, obj.PrimaryPart.Size.Y * 0.5, 0))
+         obj:SetPrimaryPartCFrame(CFrame.new(0, obj.PrimaryPart.Size.Y * 0.5 + groundOffset, 0)
+                                     * obj.PrimaryPart.CFrame)
       end
       
    elseif objectCanBePositioned(obj) then
-      obj.CFrame = obj.CFrame * CFrame.new(0, obj.Size.Y * 0.5, 0)
+      obj.CFrame = CFrame.new(0, obj.Size.Y * 0.5 + groundOffset, 0) * obj.CFrame
    end
 end
 
@@ -245,7 +245,7 @@ local function loadObjects(queryOptions)
          stats.instances[thisProp.Name] = (stats.instances[thisProp.Name] or 0) + 1
          local propCFrame = nil
          local instancePos = Vector3.new(pos[1],
-                                         (pos[2] - 3) * heightScale,
+                                         pos[2] * heightScale,
                                          pos[3]) * _terrainResolution
 
          if thisProp:IsA('Model') then
@@ -263,17 +263,20 @@ local function loadObjects(queryOptions)
          -- if offset then
          --    instancePos = instancePos + offset.Value * scale
          -- end
+
+         local instanceRotation = CFrame.fromEulerAnglesXYZ(propCFrame:ToOrientation())
          
-         local instanceCFrame = propCFrame * CFrame.new(instancePos - propCFrame.Position)
          if randomAmount and randomAmount > 0 then
-            instanceCFrame = instanceCFrame * CFrame.Angles(0, math.rad(math.random() * 360), 0)
+            instanceRotation = CFrame.Angles(0, math.rad(math.random() * 360), 0) * instanceRotation
          end
+
+         local instanceCFrame = CFrame.new(instancePos) * instanceRotation
 
          local instance = thisProp:Clone()
          instance.Parent = container
 
          transformObj(instance, instanceCFrame, scale)
-         offsetObjectToBottom(instance)
+         offsetObjectToBottom(instance, -8)
          
          --
          currentCount = currentCount + 1
