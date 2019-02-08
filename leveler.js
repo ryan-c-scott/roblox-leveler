@@ -13,6 +13,44 @@ const xmlToJs = Promise.promisify(require('xml2js').parseString);
 const kmath = require('kmath');
 const vector = kmath.vector;
 
+const _material = {
+  "Plastic": 256,
+  "Wood": 512,
+  "Slate": 800,
+  "Concrete": 816,
+  "CorrodedMetal": 1040,
+  "DiamondPlate": 1056,
+  "Foil": 1072,
+  "Grass": 1280,
+  "Ice": 1536,
+  "Marble": 784,
+  "Granite": 832,
+  "Brick": 848,
+  "Pebble": 864,
+  "Sand": 1296,
+  "Fabric": 1312,
+  "SmoothPlastic": 272,
+  "Metal": 1088,
+  "WoodPlanks": 528,
+  "Cobblestone": 880,
+  "Air": 1792,
+  "Water": 2048,
+  "Rock": 896,
+  "Glacier": 1552,
+  "Snow": 1328,
+  "Sandstone": 912,
+  "Mud": 1344,
+  "Basalt": 788,
+  "Ground": 1360,
+  "CrackedLava": 804,
+  "Neon": 288,
+  "Glass": 1568,
+  "Asphalt": 1376,
+  "LeafyGrass": 1284,
+  "Salt": 1392,
+  "Limestone": 820,
+  "Pavement": 836 }
+
 var _imageDataCache = {}
 var _heightmapDataCache = {}
 var _jsonDataCache = {}
@@ -317,12 +355,12 @@ function parseMap(data, fragIndex) {
         imageData = pngjs.PNG.sync.read(raw);
 
         // 2 channels of heightmap data
-        heightmapData = Array(imageData.data.length >> 1);
+        heightmapData = Array(imageData.data.length >> 2);
 
         // Wipe out green and blue channels
         for(var i = 0; i < imageData.data.length; i+=4) {
           // HACK:  Using green channel values to specify water flood barriers
-          heightmapData[(i >> 1) + 1] = (imageData.data[i + 1] - imageData.data[i] > 0) ? -1.0 : 0;
+          heightmapData[i + 1] = (imageData.data[i + 1] - imageData.data[i] > 0) ? -1.0 : 0;
 
           imageData.data[i + 1] = 0;
           imageData.data[i + 2] = 0;
@@ -338,6 +376,8 @@ function parseMap(data, fragIndex) {
 
             var sampleCount = 0;
             var sampleTotal = 0;
+            var sampleMin = val;
+            var sampleMax = val;
 
             // Sample neighbors to handle the aliasing caused by 1 pixel = 4x4 studs.
             for(var nY = -1; nY <= 1; ++nY) {
@@ -347,8 +387,13 @@ function parseMap(data, fragIndex) {
             
                 if(thisY >= 0 && thisY < imageData.height &&
                    thisX >= 0 && thisX < imageData.width) {
-            
-                  sampleTotal += imageData.data[((thisY) * imageData.width + thisX) * 4]
+
+                  var sampleVal = imageData.data[((thisY) * imageData.width + thisX) * 4];
+                  
+                  sampleMin = Math.min(sampleVal, sampleMin)
+                  sampleMax = Math.max(sampleVal, sampleMax)
+                  
+                  sampleTotal += sampleVal;
                   sampleCount++;
                 }
               }
@@ -360,7 +405,8 @@ function parseMap(data, fragIndex) {
               val = 0;
             }
 
-            heightmapData[idx * 2] = val;
+            heightmapData[idx * 4] = val;
+            heightmapData[idx * 4 + 2] = sampleMax - sampleMin;
 
             ////
             
@@ -387,15 +433,15 @@ function parseMap(data, fragIndex) {
             var y = Math.floor(obj.y);
             
             var depth = obj.properties.find((elem) => {return elem.name == 'depth';}).value;
-            var threshold = heightmapData[(y * imageData.width + x) * 2] + depth;
+            var threshold = heightmapData[(y * imageData.width + x) * 4] + depth;
 
-            floodFill(heightmapData, 2, 1, x, y, imageData.width, imageData.height, threshold);
+            floodFill(heightmapData, 4, 1, x, y, imageData.width, imageData.height, threshold);
           });
         });
 
         // Hack:  We update the image data to show the water generated water level (since we use that for generating a minimap)
-        for(var i = 2; i < imageData.data.length; i += 4) {
-          imageData.data[i] = Math.floor(heightmapData[i >> 1]);
+        for(var i = 0; i < imageData.data.length; i += 4) {
+          imageData.data[i + 2] = Math.floor(heightmapData[i + 1]);
         }
 
       }  // end image processing
@@ -423,14 +469,22 @@ function parseMap(data, fragIndex) {
       out.height = maxFragmentSize;
       out.heightmap = [];
       out.water = [];
+      out.material = [];
 
       // TODO:  Look into using some form of RLE
       
       for(var y = 0; y < maxFragmentSize; ++y) {
         for(var x = 0; x < maxFragmentSize; ++x) {
           var idx = (offsetY + y) * imageData.width + (offsetX + x);
-          var val = heightmapData[idx * 2];
+          var val = heightmapData[idx * 4];
           out.heightmap.push(val);
+
+          var slope = heightmapData[idx * 4 + 2];
+          var mat = _material.Grass;
+          if(slope > 2) {
+            mat = _material.Rock;
+          }
+          out.material.push(mat);
         }
       }
 
@@ -443,7 +497,7 @@ function parseMap(data, fragIndex) {
         for(var y = 0; y < maxFragmentSize; ++y) {
           for(var x = 0; x < maxFragmentSize; ++x) {
             var i = y * maxFragmentSize + x;
-            var dataIdx = ((offsetY + y) * imageData.width + (offsetX + x)) * 2 + 1;
+            var dataIdx = ((offsetY + y) * imageData.width + (offsetX + x)) * 4 + 1;
 
             var thisHeight = heightmapData[dataIdx];
 

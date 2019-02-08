@@ -6,6 +6,12 @@ local ReplicatedStorage = game:GetService('ReplicatedStorage')
 local _terrainResolution = 4;
 local _terrainHeight = 256;
 
+local _materialLookup = {}
+
+for _,v in ipairs(Enum.Material:GetEnumItems()) do
+   _materialLookup[v.Value] = v
+end
+
 local function Log(...)
    print(string.format(...))
 end
@@ -116,7 +122,7 @@ local function buildTerrainFragment(frag)
             local sliceRelativeHeight = height - sliceOffset * heightScale
             local fill = math.max(0, math.min(1, sliceRelativeHeight - j - 1))
             local water = math.max(0, waterLevel - j - sliceOffset - 1)
-            local mat = Enum.Material.Grass
+            local mat = _materialLookup[frag.material[i]]
 
             if fill > 0 and fill < 1 and water > 0 then
                mat = Enum.Material.Sand
