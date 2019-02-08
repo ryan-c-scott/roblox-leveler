@@ -192,6 +192,10 @@ function getObjectProperty(obj, key) {
   }
 }
 
+function isRegularObjectLayer(layer) {
+  return layer.type == 'objectgroup' && layer.name !== 'water' && !layer.name.startsWith('ZONE:');
+}
+
 function writeObjectDataToStream(stream, data, queryOptions) {
   var raw = _jsonDataCache[data.filename];
   var heightmap = _imageDataCache[data.filename];
@@ -227,7 +231,7 @@ function writeObjectDataToStream(stream, data, queryOptions) {
   console.log("Limits: %s, %s, %s, %s", mapMinX, mapMinY, mapMaxX, mapMaxY);
   
   raw.layers.forEach((layer) => {
-    if(layer.type != 'objectgroup' || layer.name === 'water') {
+    if(!isRegularObjectLayer(layer)) {
       return;
     }
 
@@ -389,8 +393,8 @@ function parseMap(data, fragIndex) {
         console.log("Loading image data");
         imageData = pngjs.PNG.sync.read(raw);
 
-        // 2 channels of heightmap data
-        heightmapData = Array(imageData.data.length >> 2);
+        // 4 channels of heightmap data
+        heightmapData = Array(imageData.data.length);
 
         // Wipe out green and blue channels
         for(var i = 0; i < imageData.data.length; i+=4) {
@@ -401,11 +405,38 @@ function parseMap(data, fragIndex) {
           imageData.data[i + 2] = 0;
         }
 
+        // Get the biome list
+        var biomeAreas = []
+        data.layers.forEach(function(otherLayer) {
+          if(otherLayer.type != 'objectgroup' || !otherLayer.name.startsWith('ZONE:')) {
+            return;
+          }
+          
+          otherLayer.objects.forEach(function(obj) {
+            if(!obj.ellipse) {
+              return;
+            }
+
+            var biome = obj.name;
+
+            if(!biome) {
+              biome = otherLayer.name.replace('ZONE:', '');
+            }
+
+            var radius = obj.width * 0.5;
+            
+            biomeAreas.push({x: obj.x + radius,
+                             y: obj.y + radius,
+                             radius: radius,
+                             biome: biome
+                            });
+          });
+        });
+        
         // Populate the calculated heightmap data (ie. with smoothing)
         for(var y = 0; y < imageData.height; ++y) {
           for(var x = 0; x < imageData.width; ++x) {
 
-            ////
             var idx = (y * imageData.width + x)
             var val = imageData.data[idx * 4];
 
@@ -440,9 +471,22 @@ function parseMap(data, fragIndex) {
               val = 0;
             }
 
+            // Height at 0
             heightmapData[idx * 4] = val;
+            // Water at 1 (done elsewhere)
+            // Slope at 2
             heightmapData[idx * 4 + 2] = sampleMax - sampleMin;
 
+            // Biome at 3
+            for(var i = 0; i < biomeAreas.length; ++i) {
+              var biome = biomeAreas[i];
+              
+              // For now, at least, just grab the first one
+              if(Math.pow(biome.x - x, 2) + Math.pow(biome.y - y, 2) < Math.pow(biome.radius, 2)) {
+                heightmapData[idx * 4 + 3] = biome.biome;
+                break;
+              }
+            }
             ////
             
           }
@@ -515,7 +559,9 @@ function parseMap(data, fragIndex) {
           out.heightmap.push(val);
 
           var slope = heightmapData[idx * 4 + 2];
-          out.material.push(materialForBiome(null, val, slope));
+          var biome = heightmapData[idx * 4 + 3];
+
+          out.material.push(materialForBiome(biome, val, slope));
         }
       }
 
