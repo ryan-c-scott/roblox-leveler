@@ -81,6 +81,13 @@ registerBiome('desert', function(height, slope) {
   return _material.Sand;
 });
 
+registerBiome('farm', function(height, slope) {
+  if(slope > 0.25) {
+    return _material.Grass;
+  }
+  return _material.LeafyGrass;
+});
+
 function materialForBiome(name, height, slope) {
   var handler = _biomes[name];
   if(!handler) {
