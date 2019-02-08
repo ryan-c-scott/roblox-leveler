@@ -55,6 +55,41 @@ var _imageDataCache = {}
 var _heightmapDataCache = {}
 var _jsonDataCache = {}
 
+var _biomes = {}
+
+function registerBiome(name, handler) {
+  _biomes[name] = handler;
+}
+
+function biomeDefault(height, slope) {
+  if(slope > 2) {
+    return _material.Rock;
+  }
+
+  if(height > 150) {
+    return _material.Snow;
+  }
+
+  return _material.Grass;
+}
+
+registerBiome('desert', function(height, slope) {
+  if(slope > 0.25) {
+    return _material.Sandstone;
+  }
+
+  return _material.Sand;
+});
+
+function materialForBiome(name, height, slope) {
+  var handler = _biomes[name];
+  if(!handler) {
+    handler = biomeDefault;
+  }
+
+  return handler(height, slope);
+}
+
 var server = http.createServer(async function(request, response) {
   var mapUrl = url.parse(request.url);
   var filename = path.normalize(mapUrl.pathname);
@@ -480,11 +515,7 @@ function parseMap(data, fragIndex) {
           out.heightmap.push(val);
 
           var slope = heightmapData[idx * 4 + 2];
-          var mat = _material.Grass;
-          if(slope > 2) {
-            mat = _material.Rock;
-          }
-          out.material.push(mat);
+          out.material.push(materialForBiome(null, val, slope));
         }
       }
 
