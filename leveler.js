@@ -66,7 +66,7 @@ function biomeDefault(height, slope) {
     return _material.Rock;
   }
 
-  if(height > 150) {
+  if(height > 230) {
     return _material.Snow;
   }
 
