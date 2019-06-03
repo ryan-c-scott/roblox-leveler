@@ -1,0 +1,10 @@
+{
+  "name": "Leveler",
+  "tree": {
+    "$className": "DataModel",
+    "ServerStorage": {
+      "$className": "ServerStorage",
+      "$path": "ServerStorage/Scripts"
+    }
+  }
+}
