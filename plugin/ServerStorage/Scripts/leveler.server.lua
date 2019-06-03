@@ -17,7 +17,7 @@ local function Log(...)
 end
 
 local function getWaterLevel(water, idx)
-   for i, run in ipairs(water) do
+   for _, run in ipairs(water) do
       local delta = idx - run[1]
       if delta >= 0 and delta < run[3] then
          return run[2]
@@ -316,18 +316,22 @@ local function loadAllFragments()
    ChangeHistoryService:SetEnabled(true)
 end
 
-local function loadTestArea(objOnly)
-   local fragmentsPerRow = 1875 / 125
-   local area = _area or 1
+local function loadTestArea(objects, terrain)
+   local fragmentsPerRow = 2450 / 49
+   local area = _area or 8
 
    local startX = math.floor(fragmentsPerRow * 0.5 - area * 0.5)
    local startY = math.floor(fragmentsPerRow * 0.5 - area * 0.5)
 
    --
-   loadObjects({secx = startX - 1, secy = startY - 1, secw = area, sech = area})
+   if objects then
+      ChangeHistoryService:SetEnabled(false)
+      loadObjects({secx = startX - 1, secy = startY - 1, secw = area, sech = area})
+      ChangeHistoryService:SetEnabled(true)
+   end
 
-   if objOnly then
-      return;
+   if not terrain then
+      return
    end
    
    ChangeHistoryService:SetEnabled(false)
@@ -351,6 +355,14 @@ local function loadTestArea(objOnly)
    ChangeHistoryService:SetEnabled(true)
 end
 
+local function loadTestAreaTerrain()
+   loadTestArea(false, true)
+end
+
+local function loadTestAreaObjects()
+   loadTestArea(true, false)
+end
+
 local function loadEverything()
    loadObjects()
    loadAllFragments()
@@ -365,10 +377,8 @@ end
 local toolbar = plugin:CreateToolbar("ROyale Leveler")
 addButton(toolbar, "Terrain", "Generate full terrain", "rbxassetid://1507949215", loadAllFragments)
 addButton(toolbar, "Objects", "Generate objects", "rbxassetid://1507949215", loadObjects)
-addButton(toolbar, "Test Area", "Generate test terrain", "rbxassetid://1507949215", loadTestArea)
-addButton(toolbar, "Test Area (objects)", "Generate test terrain", "rbxassetid://1507949215", function() loadTestArea(true) end)
-addButton(toolbar, "Everything", "Generate everything", "rbxassetid://1507949215", loadEverything)
-
+addButton(toolbar, "Test Area (terrain)", "Generate test terrain", "rbxassetid://1507949215", loadTestAreaTerrain)
+addButton(toolbar, "Test Area (objects)", "Generate test terrain", "rbxassetid://1507949215", loadTestAreaoObjects)
 addButton(toolbar, "Clear Terrain", "Delete all terrain", "rbxassetid://1507949215", clearTerrain)
 addButton(toolbar, "Clear Objects", "Delete generated objects", "rbxassetid://1507949215", clearObjects)
 addButton(toolbar, "Clear Everything", "Delete everything", "rbxassetid://1507949215", clearEverything)
