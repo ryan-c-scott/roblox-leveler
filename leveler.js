@@ -605,7 +605,7 @@ function parseMap(data, fragIndex) {
 
         //
         if(on) {
-          out.water.push([startIdx, height, maxFragmentSize * maxFragmentSize - 1 - startIdx]);
+          out.water.push([startIdx, height, maxFragmentSize * maxFragmentSize - startIdx]);
         }
       }
     }
